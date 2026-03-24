@@ -40,7 +40,14 @@ protected:
            std::string topic_name,
            double control_hz,
            int body_id,
-           std::string body_name);
+           std::string body_name,
+           bool motor_model_enabled,
+           double arm_length,
+           double kf,
+           double km,
+           double motor_tau,
+           double motor_omega_max,
+           double drag_coeff);
 
   // Callbacks
   void trpy_callback(const quadrotor_msgs::msg::TRPYCommand::SharedPtr msg);
@@ -71,6 +78,33 @@ protected:
   double kw_z_{45.0};
   Eigen::Matrix3d kom_ = Eigen::Vector3d(kw_x_, kw_y_, kw_z_).asDiagonal();
   Eigen::Matrix3d J_ = Eigen::Vector3d(0.00345398, 0.00179687, 0.00179676).asDiagonal();
+
+  // ── Motor model parameters ──
+  bool motor_model_enabled_ = false;
+
+  // Geometry: arm length from center to each motor [m]
+  double arm_length_ = 0.1;
+
+  // Propeller coefficients:  F_i = kf * omega_i^2,  tau_i = km * omega_i^2
+  double kf_ = 1.91e-6;    // thrust coefficient [N/(rad/s)^2]
+  double km_ = 2.6e-8;     // torque coefficient [N·m/(rad/s)^2]
+
+  // Motor first-order dynamics time constant [s]
+  //   omega_dot = (omega_des - omega) / tau_motor
+  double motor_tau_ = 0.02;
+
+  // Maximum motor angular velocity [rad/s]
+  double motor_omega_max_ = 2500.0;
+
+  // Aerodynamic drag coefficient (body-frame linear drag) [N/(m/s)]
+  double drag_coeff_ = 0.1;
+
+  // Motor states: current angular velocities [rad/s]
+  Eigen::Vector4d motor_omega_ = Eigen::Vector4d::Zero();
+
+  // Mixer: allocation matrix  [F, τx, τy, τz] → [ω1², ω2², ω3², ω4²]
+  // and its inverse for converting desired wrench → desired motor speeds
+  Eigen::Matrix4d mixer_inv_;  // wrench → omega_i^2
 
   // Simulation Timing
   double ctrl_dt_ = 0.0;

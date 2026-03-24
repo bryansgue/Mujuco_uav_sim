@@ -72,6 +72,7 @@
 /home/bryansgue/uav_ws/install/acp_mujoco_simulator/share/acp_mujoco_simulator/model/humanoid_resource/meshes/waist_yaw_link_rev_1_0.STL
 /home/bryansgue/uav_ws/install/acp_mujoco_simulator/share/acp_mujoco_simulator/model/humanoid_resource/read_mujoco.py
 /home/bryansgue/uav_ws/install/acp_mujoco_simulator/share/acp_mujoco_simulator/model/quadrotor_acro_macro.xml.xacro
+/home/bryansgue/uav_ws/install/acp_mujoco_simulator/share/acp_mujoco_simulator/model/quadrotor_acro_macro_motors.xml.xacro
 /home/bryansgue/uav_ws/install/acp_mujoco_simulator/share/acp_mujoco_simulator/model/quadrotor_lowlevel_macro.xml.xacro
 /home/bryansgue/uav_ws/install/acp_mujoco_simulator/share/acp_mujoco_simulator/model/quadrotor_so3_macro.xml.xacro
 /home/bryansgue/uav_ws/install/acp_mujoco_simulator/share/acp_mujoco_simulator/model/quadrotor_verify_mass_inertia.xml
@@ -79,6 +80,8 @@
 /home/bryansgue/uav_ws/install/acp_mujoco_simulator/share/acp_mujoco_simulator/model/scene.xml.xacro
 /home/bryansgue/uav_ws/install/acp_mujoco_simulator/share/acp_mujoco_simulator/model/scene_acro.xml.xacro
 /home/bryansgue/uav_ws/install/acp_mujoco_simulator/share/acp_mujoco_simulator/model/scene_acro_humanoid.xml.xacro
+/home/bryansgue/uav_ws/install/acp_mujoco_simulator/share/acp_mujoco_simulator/model/scene_acro_motors.xml.xacro
+/home/bryansgue/uav_ws/install/acp_mujoco_simulator/share/acp_mujoco_simulator/model/scene_acro_nopayload.xml.xacro
 /home/bryansgue/uav_ws/install/acp_mujoco_simulator/share/acp_mujoco_simulator/model/scene_lowlevel.xml.xacro
 /home/bryansgue/uav_ws/install/acp_mujoco_simulator/share/acp_mujoco_simulator/model/scene_so3.xml.xacro
 /home/bryansgue/uav_ws/install/acp_mujoco_simulator/share/ament_index/resource_index/package_run_dependencies/acp_mujoco_simulator

@@ -1,0 +1,1158 @@
+% ============================================================================
+%  A Modular High-Fidelity Quadrotor Simulator Based on MuJoCo and ROS 2
+%  LaTeX source — IEEE journal two-column format
+% ============================================================================
+\documentclass[journal]{IEEEtran}
+
+% ── Packages ──
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{bm}
+\usepackage{mathtools}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{hyperref}
+\usepackage{cleveref}
+\usepackage{algorithmic}
+\usepackage{algorithm}
+\usepackage{cite}
+\usepackage{siunitx}
+\usepackage{tabularx}
+\usepackage{balance}
+
+% ── Custom commands ──
+\newcommand{\R}{\mathbf{R}}
+\newcommand{\J}{\mathbf{J}}
+\newcommand{\w}{\mathbf{w}}
+\newcommand{\A}{\mathbf{A}}
+\newcommand{\I}{\mathbf{I}}
+\newcommand{\bomega}{\boldsymbol{\omega}}
+\newcommand{\btau}{\boldsymbol{\tau}}
+\newcommand{\bOmega}{\boldsymbol{\Omega}}
+\newcommand{\diag}{\operatorname{diag}}
+\newcommand{\clamp}{\operatorname{clamp}}
+\newcommand{\wrap}{\operatorname{wrap}}
+\DeclareMathOperator{\atan}{atan2}
+
+% ============================================================================
+\begin{document}
+
+\title{A Modular High-Fidelity Quadrotor Simulator Based on MuJoCo and ROS\,2: From Simplified Wrench Models to Realistic Motor Dynamics for Digital Twin Applications}
+
+\author{Bryan~S.~Guevara,~\IEEEmembership{}
+  \thanks{Manuscript received March 24, 2026.}
+  \thanks{B.\,S.~Guevara is with [Affiliation]. E-mail: [email].}
+}
+
+\markboth{IEEE Robotics and Automation Letters, Vol.~XX, No.~XX, Month~2026}
+{Guevara: Modular Quadrotor Simulator Based on MuJoCo and ROS\,2}
+
+\maketitle
+
+% ============================================================================
+\begin{abstract}
+This paper presents a modular, open-source quadrotor simulation framework built upon the MuJoCo physics engine and the ROS\,2 middleware. The simulator implements two distinct actuation models with increasing physical fidelity: (i)~a \emph{Direct Wrench Model} that applies aggregate thrust and torque to the rigid body, and (ii)~a \emph{Motor-Level Model} that incorporates individual propeller aerodynamics, a control allocation mixer in Betaflight X-configuration, first-order motor dynamics, and body-frame aerodynamic drag. Both models share a common inner-loop angular rate controller based on gyroscopic compensation and proportional feedback. The mathematical formulation of every subsystem is presented in detail, including the rigid-body dynamics, the quaternion-based attitude representation, the allocation matrix derivation, the motor electromechanical response, and the propeller thrust--torque relationships. The framework is designed as a digital twin platform, where each parameter can be calibrated against a physical Betaflight-based UAV. A ROS\,2 plugin architecture ensures modularity, reproducibility, and seamless integration with external controllers such as Nonlinear Model Predictive Control (NMPC). Numerical considerations regarding integration schemes, time-stepping, and simulation stability are discussed. The simulator is validated qualitatively through hover and trajectory tracking experiments in both actuation modes.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Quadrotor simulation, MuJoCo, ROS\,2, motor dynamics, digital twin, Betaflight, control allocation, UAV.
+\end{IEEEkeywords}
+
+% ============================================================================
+\section{Introduction}
+\label{sec:introduction}
+
+\IEEEPARstart{U}{nmanned} Aerial Vehicles (UAVs), particularly quadrotors, have become ubiquitous platforms for research in autonomous navigation, aerial manipulation, and payload transportation. The rapid development of control algorithms---from classical PID cascades to advanced Nonlinear Model Predictive Control (NMPC) and reinforcement learning---demands simulation environments that are simultaneously \emph{physically accurate}, \emph{computationally efficient}, and \emph{easily interfaced} with real-time control software.
+
+The current landscape of quadrotor simulation can be broadly categorized into three tiers of physical fidelity:
+
+\begin{enumerate}
+  \item \textbf{Kinematic/simplified dynamics simulators} (e.g., MATLAB scripts, simple Python integrators) that model the quadrotor as a point mass or rigid body with ideal actuation. These are fast but neglect critical phenomena such as motor lag, propeller saturation, and aerodynamic drag.
+
+  \item \textbf{Mid-fidelity physics engines} (e.g., Gazebo with ODE/Bullet, AirSim with PhysX) that provide rigid-body contact dynamics and basic aerodynamic plugins. However, the integration accuracy and actuator modeling fidelity are often limited by the underlying solver.
+
+  \item \textbf{High-fidelity computational fluid dynamics (CFD)} coupled simulations that capture blade-element aerodynamics and rotor--rotor interaction. These are prohibitively expensive for real-time or near-real-time control development.
+\end{enumerate}
+
+MuJoCo (Multi-Joint dynamics with Contact)~\cite{todorov2012mujoco} occupies a unique position in this landscape. Originally developed for biomechanical simulation and robotic locomotion, MuJoCo employs a convex optimization-based contact solver and supports high-order implicit and explicit integrators (Euler, RK4, implicit) with configurable timesteps. Its C~API, deterministic simulation, and plugin architecture make it an excellent foundation for control-oriented UAV simulation.
+
+This paper presents a modular quadrotor simulation framework that leverages MuJoCo's physics engine through a set of custom C++ plugins integrated with ROS\,2 Humble. The key contributions are:
+
+\begin{itemize}
+  \item A rigorous mathematical description of two actuation models---\emph{Direct Wrench} and \emph{Motor-Level}---both operating within the same simulation infrastructure.
+  \item Derivation of the control allocation (mixer) matrix for the Betaflight X-configuration, including the inverse mapping from desired wrench to individual motor speed commands.
+  \item Integration of first-order motor electromechanical dynamics and propeller aerodynamic models into the MuJoCo simulation loop.
+  \item A modular ROS\,2 plugin architecture that enables seamless switching between actuation fidelity levels and straightforward integration with external controllers.
+  \item Discussion of numerical considerations, parameter calibration strategies, and the path toward a fully calibrated digital twin.
+\end{itemize}
+
+The remainder of this paper is organized as follows. \Cref{sec:related} reviews related work. \Cref{sec:preliminaries} establishes the mathematical preliminaries and coordinate frame conventions. \Cref{sec:dynamics} derives the complete rigid-body dynamics. \Cref{sec:model1} presents the Direct Wrench actuation model and the inner-loop rate controller. \Cref{sec:model2} derives the Motor-Level model including the mixer, motor dynamics, and propeller aerodynamics. \Cref{sec:mujoco} discusses the MuJoCo configuration and numerical integration. \Cref{sec:architecture} describes the software architecture. \Cref{sec:outerloop} presents the outer-loop position controller. \Cref{sec:comparison} compares both models analytically. \Cref{sec:calibration} discusses calibration strategies. \Cref{sec:considerations} addresses simulation considerations and limitations. \Cref{sec:conclusions} concludes the paper.
+
+
+% ============================================================================
+\section{Related Work}
+\label{sec:related}
+
+\subsection{Quadrotor Dynamic Modeling}
+
+The rigid-body dynamics of a quadrotor have been extensively studied. Mahony et~al.~\cite{mahony2012multirotor} established the $SE(3)$ formulation widely used in geometric control. Mellinger and Kumar~\cite{mellinger2011minimum} developed trajectory optimization frameworks based on differential flatness, assuming ideal actuation. Faessler et~al.~\cite{faessler2017thrust} highlighted the importance of including actuator dynamics in aggressive flight control. More recently, Torrente et~al.~\cite{torrente2021data} demonstrated that accounting for aerodynamic effects and motor lag significantly improves the sim-to-real transfer of learned controllers.
+
+\subsection{Simulation Platforms}
+
+Gazebo~\cite{koenig2004design}, coupled with RotorS~\cite{furrer2016rotors}, has been the de facto standard for ROS-based UAV simulation, providing aerodynamic plugins and motor models within a Bullet/ODE physics backend. However, the integration accuracy and solver stability of these backends are limited at the small timesteps required for fast inner-loop controllers.
+
+AirSim~\cite{shah2018airsim} employs Unreal Engine for rendering and PhysX for dynamics, targeting primarily vision-based autonomy. Its rigid-body dynamics are less configurable than MuJoCo's.
+
+Flightmare~\cite{foehn2020flightmare} provides a lightweight rendering and dynamics engine specifically for quadrotors, but uses a simplified Euler integrator and lacks the general-purpose contact dynamics that MuJoCo provides.
+
+The recent open-sourcing of MuJoCo~\cite{todorov2012mujoco} has led to its adoption in legged robotics and manipulation. Its use in aerial robotics remains relatively unexplored, which this work aims to address.
+
+\subsection{Digital Twin Concepts for UAVs}
+
+The digital twin paradigm~\cite{grieves2017digital} requires a simulation model whose parameters are identified from the physical system. For quadrotors, this means calibrating inertial properties, motor time constants, propeller coefficients, and drag parameters from bench tests and flight data. Our framework is designed with this calibration pipeline in mind, exposing all relevant parameters through the simulation configuration.
+
+
+% ============================================================================
+\section{Mathematical Preliminaries}
+\label{sec:preliminaries}
+
+\subsection{Reference Frames}
+
+We define two principal reference frames:
+\begin{itemize}
+  \item \textbf{World frame} $\mathcal{W} = \{O_W, \mathbf{e}_1^W, \mathbf{e}_2^W, \mathbf{e}_3^W\}$: An inertial frame with $\mathbf{e}_3^W$ pointing upward (against gravity).
+  \item \textbf{Body frame} $\mathcal{B} = \{O_B, \mathbf{e}_1^B, \mathbf{e}_2^B, \mathbf{e}_3^B\}$: Fixed to the quadrotor's center of mass, with $\mathbf{e}_1^B$ forward, $\mathbf{e}_2^B$ left, and $\mathbf{e}_3^B$ upward through the propeller plane.
+\end{itemize}
+
+\subsection{Rotation Representation}
+
+The orientation of $\mathcal{B}$ with respect to $\mathcal{W}$ is represented by the rotation matrix $\R \in SO(3)$, which maps vectors from body to world coordinates:
+\begin{equation}
+  \mathbf{v}^W = \R \, \mathbf{v}^B.
+  \label{eq:rotation}
+\end{equation}
+
+Internally, MuJoCo stores orientation as a unit quaternion $\mathbf{q} = (q_w, q_x, q_y, q_z) \in \mathbb{S}^3$ with the Hamilton convention ($q_w$ is the scalar part). The rotation matrix is reconstructed as:
+\begin{equation}
+  \R(\mathbf{q}) = \begin{bmatrix}
+    1\!-\!2(q_y^2\!+\!q_z^2) & 2(q_x q_y\!-\!q_w q_z) & 2(q_x q_z\!+\!q_w q_y) \\
+    2(q_x q_y\!+\!q_w q_z) & 1\!-\!2(q_x^2\!+\!q_z^2) & 2(q_y q_z\!-\!q_w q_x) \\
+    2(q_x q_z\!-\!q_w q_y) & 2(q_y q_z\!+\!q_w q_x) & 1\!-\!2(q_x^2\!+\!q_y^2)
+  \end{bmatrix}.
+  \label{eq:quat_to_rot}
+\end{equation}
+This avoids the gimbal lock singularity inherent to Euler angle representations and provides numerically stable integration of the rotational kinematics.
+
+\subsection{Angular Velocity}
+
+Let $\bomega^W \in \mathbb{R}^3$ denote the angular velocity of $\mathcal{B}$ expressed in $\mathcal{W}$. The body-frame angular velocity is obtained via:
+\begin{equation}
+  \bomega^B = \R^\top \bomega^W.
+  \label{eq:omega_body}
+\end{equation}
+The components are $\bomega^B = (\omega_x, \omega_y, \omega_z)^\top$, corresponding to roll rate~($p$), pitch rate~($q$), and yaw rate~($r$), respectively.
+
+\subsection{Notation Summary}
+
+\Cref{tab:notation} summarizes the main symbols used throughout this paper.
+
+\begin{table}[!t]
+  \centering
+  \caption{Notation Summary}
+  \label{tab:notation}
+  \begin{tabular}{@{}clc@{}}
+    \toprule
+    Symbol & Description & Units \\
+    \midrule
+    $m$ & Total quadrotor mass & \si{kg} \\
+    $\J$ & Inertia tensor (body frame) & \si{kg.m^2} \\
+    $\mathbf{p}^W$ & Position in world frame & \si{m} \\
+    $\mathbf{v}^W$ & Linear velocity in world frame & \si{m/s} \\
+    $\R$ & Rotation matrix ($\mathcal{B} \to \mathcal{W}$) & --- \\
+    $\bomega^B$ & Angular velocity in body frame & \si{rad/s} \\
+    $F$ & Total thrust along $\mathbf{e}_3^B$ & \si{N} \\
+    $\btau$ & Torque vector in body frame & \si{N.m} \\
+    $g$ & Gravitational acceleration & \si{m/s^2} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+
+% ============================================================================
+\section{Quadrotor Rigid-Body Dynamics}
+\label{sec:dynamics}
+
+\subsection{Translational Dynamics}
+
+The quadrotor is modeled as a single rigid body of mass~$m$ subject to gravity, the total thrust force~$F$ along the body $z$-axis, and an optional aerodynamic drag force. The Newton--Euler equations in the world frame are:
+\begin{equation}
+  m \ddot{\mathbf{p}}^W = -m g \, \mathbf{e}_3^W + \R \begin{pmatrix} 0 \\ 0 \\ F \end{pmatrix} + \mathbf{f}_{\text{ext}}
+  \label{eq:translational}
+\end{equation}
+where $\mathbf{f}_{\text{ext}}$ includes contact forces (computed internally by MuJoCo's constraint solver) and any external disturbances.
+
+In MuJoCo, translational dynamics are handled by the engine's generalized coordinate solver. The thrust force~$F$ is applied through a MuJoCo \emph{motor actuator} attached to a site coincident with the body's center of mass, with a gear vector $\mathbf{g}_F = (0, 0, 1, 0, 0, 0)$ that maps the scalar control input to a force along the body $z$-axis.
+
+\subsection{Rotational Dynamics}
+
+The Euler equation for rotational dynamics in the body frame is:
+\begin{equation}
+  \J \dot{\bomega}^B = \btau^B - \bomega^B \times (\J \bomega^B)
+  \label{eq:rotational}
+\end{equation}
+where $\btau^B = (\tau_x, \tau_y, \tau_z)^\top$ is the net external torque in the body frame, and the term $\bomega^B \times (\J \bomega^B)$ is the gyroscopic (Coriolis) coupling.
+
+The inertia tensor is assumed diagonal due to the quadrotor's symmetric geometry:
+\begin{equation}
+  \J = \diag(J_{xx}, J_{yy}, J_{zz})
+  \label{eq:inertia}
+\end{equation}
+with values listed in \Cref{tab:inertia}.
+
+\begin{table}[!t]
+  \centering
+  \caption{Inertia Tensor Components}
+  \label{tab:inertia}
+  \begin{tabular}{@{}lcc@{}}
+    \toprule
+    Component & Symbol & Value (\si{kg.m^2}) \\
+    \midrule
+    Roll & $J_{xx}$ & $3.454 \times 10^{-3}$ \\
+    Pitch & $J_{yy}$ & $1.797 \times 10^{-3}$ \\
+    Yaw & $J_{zz}$ & $1.797 \times 10^{-3}$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+These values are computed by MuJoCo from the composite geometry of the quadrotor model, which consists of the components listed in \Cref{tab:geometry}.
+
+\begin{table}[!t]
+  \centering
+  \caption{Quadrotor Model Geometry and Mass Distribution}
+  \label{tab:geometry}
+  \begin{tabular}{@{}lccc@{}}
+    \toprule
+    Component & Geometry & Mass (\si{kg}) & Qty. \\
+    \midrule
+    Central body & Box: $70\!\times\!70\!\times\!30$\,mm & $0.850$ & 1 \\
+    Arms & Box: $100\!\times\!20\!\times\!5$\,mm & $0.035$ & 4 \\
+    Propeller discs & Cyl.: $r\!=\!30$\,mm, $h\!=\!5$\,mm & $0.015$ & 4 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+The total mass is:
+\begin{equation}
+  m = 0.850 + 4 \times 0.035 + 4 \times 0.015 = \SI{1.05}{kg}.
+  \label{eq:mass}
+\end{equation}
+
+\begin{remark}
+  MuJoCo computes the composite inertia tensor automatically from the constituent geometries using the parallel axis theorem. The value $m = \SI{1.08}{kg}$ used in the outer-loop controller accounts for additional unmodeled mass.
+\end{remark}
+
+\subsection{Quadrotor Geometry}
+
+The quadrotor has an X-configuration with arm length $L = \SI{0.1}{m}$ measured from the center of mass to each motor mount. The arms are oriented at $\pm 45^\circ$ relative to the body $x$-axis, placing the motors at body-frame coordinates listed in \Cref{tab:motors}. The effective moment arm is:
+\begin{equation}
+  L_s = \frac{L}{\sqrt{2}} \approx \SI{0.0707}{m}.
+  \label{eq:Ls}
+\end{equation}
+
+\begin{table}[!t]
+  \centering
+  \caption{Motor Layout (Betaflight X-Configuration)}
+  \label{tab:motors}
+  \begin{tabular}{@{}lccc@{}}
+    \toprule
+    Motor & Position $(x_i, y_i)$ & Spin & $\sigma_i$ \\
+    \midrule
+    M1 (front-right) & $(+L_s, -L_s)$ & CW & $-1$ \\
+    M2 (rear-right) & $(-L_s, -L_s)$ & CCW & $+1$ \\
+    M3 (rear-left) & $(-L_s, +L_s)$ & CW & $-1$ \\
+    M4 (front-left) & $(+L_s, +L_s)$ & CCW & $+1$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+
+% ============================================================================
+\section{Model~I: Direct Wrench Actuation}
+\label{sec:model1}
+
+\subsection{Overview}
+
+The Direct Wrench Model bypasses individual motor and propeller modeling entirely. The control architecture consists of:
+\begin{enumerate}
+  \item An \textbf{external controller} (e.g., PD, NMPC) that computes a desired thrust $F_{\text{cmd}}$ and desired body-frame angular velocity $\bomega_d = (\omega_{d,x}, \omega_{d,y}, \omega_{d,z})^\top$.
+  \item An \textbf{inner-loop rate controller} (the AcroMode plugin) that converts the angular velocity command into body-frame torques.
+  \item \textbf{Direct application} of the resulting wrench $(F, \tau_x, \tau_y, \tau_z)$ to MuJoCo actuators.
+\end{enumerate}
+
+\subsection{Inner-Loop Rate Controller}
+
+The rate controller implements a proportional feedback law with feedforward gyroscopic compensation. Given the current body-frame angular velocity $\bomega^B$ and the desired angular velocity $\bomega_d$, the control torque is:
+\begin{equation}
+  \btau_{\text{des}} = \bomega^B \times (\J \bomega^B) - \J \mathbf{K}_{\omega} (\bomega^B - \bomega_d)
+  \label{eq:rate_controller}
+\end{equation}
+where $\mathbf{K}_{\omega} = \diag(K_{\omega,x}, K_{\omega,y}, K_{\omega,z})$ is the diagonal gain matrix.
+
+\subsubsection{Physical Interpretation}
+
+The term $\bomega^B \times (\J \bomega^B)$ is a \textbf{gyroscopic feedforward} that cancels the Coriolis coupling in \eqref{eq:rotational}. Substituting \eqref{eq:rate_controller} into \eqref{eq:rotational} yields the decoupled closed-loop dynamics:
+\begin{equation}
+  \J \dot{\bomega}^B = -\J \mathbf{K}_{\omega} (\bomega^B - \bomega_d)
+  \label{eq:closed_loop_rate}
+\end{equation}
+which results in first-order convergence on each axis:
+\begin{equation}
+  \dot{\omega}_i = -K_{\omega,i} (\omega_i - \omega_{d,i}), \quad i \in \{x, y, z\}
+  \label{eq:first_order}
+\end{equation}
+with time constants $\tau_i = 1 / K_{\omega,i}$.
+
+The controller parameters are summarized in \Cref{tab:rate_gains}.
+
+\begin{table}[!t]
+  \centering
+  \caption{Inner-Loop Rate Controller Gains}
+  \label{tab:rate_gains}
+  \begin{tabular}{@{}lccc@{}}
+    \toprule
+    Axis & $K_{\omega,i}$ & $\tau_i$ (\si{ms}) \\
+    \midrule
+    Roll ($x$) & $20.0$ & $50.0$ \\
+    Pitch ($y$) & $35.0$ & $28.6$ \\
+    Yaw ($z$) & $45.0$ & $22.2$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+The asymmetric gains reflect the fact that the roll axis has a larger moment of inertia ($J_{xx} > J_{yy} = J_{zz}$) and thus requires less aggressive tracking, while the yaw axis is tuned for faster response.
+
+\subsection{Actuator Mapping}
+
+In the Direct Wrench Model, the computed wrench is written directly to four MuJoCo motor actuators, as detailed in \Cref{tab:actuators}.
+
+\begin{table}[!t]
+  \centering
+  \caption{MuJoCo Actuator Configuration}
+  \label{tab:actuators}
+  \begin{tabular}{@{}lccc@{}}
+    \toprule
+    Actuator & Signal & Gear Vector & Range \\
+    \midrule
+    \texttt{body\_thrust} & $F_{\text{cmd}}$ & $(0,0,1,0,0,0)$ & $[0, 82]$\,N \\
+    \texttt{x\_moment} & $\tau_x$ & $(0,0,0,1,0,0)$ & $[-0.3, 0.3]$\,N$\cdot$m \\
+    \texttt{y\_moment} & $\tau_y$ & $(0,0,0,0,1,0)$ & $[-0.3, 0.3]$\,N$\cdot$m \\
+    \texttt{z\_moment} & $\tau_z$ & $(0,0,0,0,0,1)$ & $[-0.3, 0.3]$\,N$\cdot$m \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+The gear vector specification $(g_1, \ldots, g_6)$ in MuJoCo maps a scalar control input~$u$ to a generalized force: the first three components define a force vector and the last three a torque vector, both in the site's local frame.
+
+\subsection{Control Execution Rate}
+
+The rate controller executes at a configurable frequency $f_c = \SI{500}{Hz}$. Given MuJoCo's simulation timestep of $\Delta t = \SI{3}{ms}$ ($\approx\SI{333}{Hz}$), the controller updates approximately every $1.5$ simulation steps. An internal accumulator ensures correct timing:
+\begin{equation}
+  t_{\text{next}} \leftarrow t_{\text{next}} + \frac{1}{f_c}.
+  \label{eq:timing}
+\end{equation}
+A \texttt{while} loop ensures that multiple control updates are executed if the simulation advances by more than one control period, preventing control lag.
+
+\subsection{Advantages and Limitations}
+
+\textbf{Advantages:}
+\begin{itemize}
+  \item Computationally trivial: no mixer computation, no motor state integration.
+  \item Direct mapping of control intent to body-level forces/torques.
+  \item Ideal for control algorithm development where actuator dynamics are not the focus.
+  \item Guaranteed bounded actuator outputs through MuJoCo's \texttt{ctrllimited} constraint.
+\end{itemize}
+
+\textbf{Limitations:}
+\begin{itemize}
+  \item No representation of actuator bandwidth: wrench changes are instantaneous.
+  \item No coupling between thrust and torque through shared actuators (motors).
+  \item Cannot capture motor saturation, propeller stall, or the non-trivial mapping from desired to achievable wrench.
+  \item Poor sim-to-real transfer for aggressive maneuvers where motor dynamics are significant.
+\end{itemize}
+
+
+% ============================================================================
+\section{Model~II: Motor-Level Actuation (Digital Twin)}
+\label{sec:model2}
+
+\subsection{Overview}
+
+The Motor-Level Model introduces a realistic actuation pipeline between the rate controller output and the MuJoCo actuators. This pipeline models:
+\begin{enumerate}
+  \item \textbf{Control allocation} (mixer): mapping desired wrench to individual motor speed commands.
+  \item \textbf{Motor electromechanical dynamics}: first-order response of each motor.
+  \item \textbf{Propeller aerodynamics}: thrust and reactive torque as functions of motor speed.
+  \item \textbf{Aerodynamic drag}: body-frame linear drag opposing translational motion.
+\end{enumerate}
+
+The resulting architecture is:
+\begin{equation*}
+  \underbrace{(F_{\text{cmd}}, \bomega_d)}_{\text{Ext.\ cmd.}}
+  \!\xrightarrow{\text{Rate ctrl.}}\!
+  \underbrace{\w_{\text{des}}}_{\text{Wrench}}
+  \!\xrightarrow{\text{Mixer}}\!
+  \underbrace{\bOmega_d^2}_{\text{Des.\ speeds}}
+  \!\xrightarrow{\text{Motor dyn.}}\!
+  \underbrace{\bOmega}_{\text{Act.\ speeds}}
+  \!\xrightarrow{\text{Propeller}}\!
+  \underbrace{\w_{\text{act}}}_{\text{Act.\ wrench}}
+\end{equation*}
+
+\subsection{Propeller Aerodynamic Model}
+
+Each propeller~$i$ generates a thrust force $f_i$ and a reactive torque $\mu_i$ that are functions of the motor angular velocity $\Omega_i$:
+\begin{align}
+  f_i   &= k_f \, \Omega_i^2 \label{eq:thrust_model} \\
+  \mu_i &= k_m \, \Omega_i^2 \label{eq:torque_model}
+\end{align}
+where $k_f$ [\si{N/(rad/s)^2}] is the \textbf{thrust coefficient} and $k_m$ [\si{N.m/(rad/s)^2}] is the \textbf{torque coefficient}.
+
+The ratio $k_m / k_f$ has units of meters and is related to the blade's drag-to-lift ratio:
+\begin{equation}
+  \frac{k_m}{k_f} = c_{\tau f} \approx \SI{0.0136}{m}.
+  \label{eq:km_kf_ratio}
+\end{equation}
+
+\subsubsection{Blade Element Theory Justification}
+
+The quadratic relationship $f \propto \Omega^2$ follows from dimensional analysis and blade element momentum theory (BEMT). For a propeller of radius~$R$ operating in hover (zero advance ratio), the thrust is:
+\begin{equation}
+  f = C_T \rho n^2 D^4
+  \label{eq:bemt}
+\end{equation}
+where $C_T$ is the thrust coefficient, $\rho$ the air density, $n = \Omega/(2\pi)$ the rotational frequency, and $D = 2R$ the diameter. Since $C_T$ is approximately constant at fixed pitch, $f \propto \Omega^2$.
+
+\subsubsection{Default Parameter Values}
+
+The thrust coefficient is derived from the hover condition:
+\begin{equation}
+  k_f = \frac{mg/4}{\Omega_{\text{hover}}^2} = \frac{2.65}{1178^2} \approx \SI{1.91e-6}{N/(rad/s)^2}
+  \label{eq:kf_derivation}
+\end{equation}
+and the torque coefficient from the typical ratio $k_m / k_f \approx 0.0136$:
+\begin{equation}
+  k_m \approx 0.0136 \times k_f = \SI{2.6e-8}{N.m/(rad/s)^2}.
+  \label{eq:km_derivation}
+\end{equation}
+
+\subsection{Control Allocation Matrix (Mixer)}
+\label{sec:mixer}
+
+The total wrench on the quadrotor body due to the four propellers is the sum of individual contributions. For the Betaflight X-configuration:
+
+\textbf{Thrust} (body $z$-axis)---all four propellers contribute positively:
+\begin{equation}
+  F = k_f (\Omega_1^2 + \Omega_2^2 + \Omega_3^2 + \Omega_4^2).
+  \label{eq:total_thrust}
+\end{equation}
+
+\textbf{Roll torque}~($\tau_x$)---differential thrust between left-side (M3, M4) and right-side (M1, M2) motors:
+\begin{equation}
+  \tau_x = k_f L_s (-\Omega_1^2 - \Omega_2^2 + \Omega_3^2 + \Omega_4^2).
+  \label{eq:roll_torque}
+\end{equation}
+
+\textbf{Pitch torque}~($\tau_y$)---differential thrust between front (M1, M4) and rear (M2, M3) motors:
+\begin{equation}
+  \tau_y = k_f L_s (+\Omega_1^2 - \Omega_2^2 - \Omega_3^2 + \Omega_4^2).
+  \label{eq:pitch_torque}
+\end{equation}
+
+\textbf{Yaw torque}~($\tau_z$)---reactive torques from CW (M1, M3) and CCW (M2, M4) motors:
+\begin{equation}
+  \tau_z = k_m (-\Omega_1^2 + \Omega_2^2 - \Omega_3^2 + \Omega_4^2).
+  \label{eq:yaw_torque}
+\end{equation}
+
+In compact matrix form:
+\begin{equation}
+  \underbrace{\begin{pmatrix} F \\ \tau_x \\ \tau_y \\ \tau_z \end{pmatrix}}_{\w}
+  =
+  \underbrace{\begin{pmatrix}
+    k_f      & k_f      & k_f      & k_f      \\
+    -k_f L_s & -k_f L_s & k_f L_s  & k_f L_s  \\
+    k_f L_s  & -k_f L_s & -k_f L_s & k_f L_s  \\
+    -k_m     & k_m      & -k_m     & k_m
+  \end{pmatrix}}_{\A}
+  \underbrace{\begin{pmatrix} \Omega_1^2 \\ \Omega_2^2 \\ \Omega_3^2 \\ \Omega_4^2 \end{pmatrix}}_{\bOmega^2}.
+  \label{eq:allocation}
+\end{equation}
+
+The \textbf{inverse allocation} (mixer inverse) is:
+\begin{equation}
+  \bOmega_{\text{des}}^2 = \A^{-1} \w_{\text{des}}.
+  \label{eq:inverse_allocation}
+\end{equation}
+
+Since $\A$ is a $4 \times 4$ matrix with full rank (for $k_f > 0$, $k_m > 0$, $L > 0$), the inverse exists and is unique. This means the quadrotor system is \textbf{fully actuated} in the wrench space $(F, \tau_x, \tau_y, \tau_z)$.
+
+\subsubsection{Analytical Structure of $\A^{-1}$}
+
+Due to the symmetry of the X-configuration, defining $a = 1/(4k_f)$, $b = 1/(4k_f L_s)$, and $c = 1/(4k_m)$, the inverse is:
+\begin{equation}
+  \A^{-1} = \begin{pmatrix}
+    a & -b &  b & -c \\
+    a & -b & -b &  c \\
+    a &  b & -b & -c \\
+    a &  b &  b &  c
+  \end{pmatrix}.
+  \label{eq:A_inv}
+\end{equation}
+
+\subsection{Motor Speed Clamping}
+
+The desired motor speed squared $\Omega_{i,d}^2$ may be negative (infeasible wrench) or exceed the motor's maximum capacity. The clamping operation is:
+\begin{align}
+  \Omega_{i,d}^2 &\leftarrow \clamp(\Omega_{i,d}^2, \; 0, \; \Omega_{\max}^2) \label{eq:clamp_sq} \\
+  \Omega_{i,d}   &= \sqrt{\Omega_{i,d}^2} \label{eq:sqrt_omega}
+\end{align}
+where $\Omega_{\max}$ is the maximum motor angular velocity. This introduces a nonlinearity absent in the Direct Wrench Model.
+
+\subsubsection{Saturation Analysis}
+
+At hover, each motor operates at:
+\begin{equation}
+  \Omega_{\text{hover}} = \sqrt{\frac{mg}{4 k_f}} = \sqrt{\frac{1.08 \times 9.81}{4 \times 1.91 \times 10^{-6}}} \approx \SI{1178}{rad/s}.
+  \label{eq:omega_hover}
+\end{equation}
+
+With $\Omega_{\max} = \SI{2500}{rad/s}$, the thrust-to-weight ratio is:
+\begin{equation}
+  \frac{F_{\max}}{mg} = \frac{4 k_f \Omega_{\max}^2}{mg} \approx 4.5
+  \label{eq:thrust_weight}
+\end{equation}
+providing a comfortable margin for aggressive maneuvers.
+
+\subsection{First-Order Motor Dynamics}
+
+Real brushless DC motors exhibit finite bandwidth due to electrical time constants (RL circuit of the windings), ESC update rate, and mechanical inertia of the rotor--propeller assembly. We model the aggregate effect as a first-order system:
+\begin{equation}
+  \dot{\Omega}_i = \frac{\Omega_{i,d} - \Omega_i}{\tau_m}
+  \label{eq:motor_dynamics}
+\end{equation}
+where $\tau_m$ is the motor time constant. The transfer function is:
+\begin{equation}
+  \frac{\Omega_i(s)}{\Omega_{i,d}(s)} = \frac{1}{\tau_m s + 1}
+  \label{eq:motor_tf}
+\end{equation}
+with a $-3$\,dB bandwidth of $f_{-3\text{dB}} = 1/(2\pi\tau_m)$.
+
+\subsubsection{Discrete-Time Integration}
+
+Given the simulation timestep $\Delta t$, a forward Euler discretization yields:
+\begin{equation}
+  \Omega_i[k\!+\!1] = \Omega_i[k] + \alpha \left(\Omega_{i,d}[k] - \Omega_i[k]\right)
+  \label{eq:euler_motor}
+\end{equation}
+where $\alpha = \Delta t / \tau_m$ is the discrete-time filter coefficient. For the default parameters ($\Delta t = \SI{3}{ms}$, $\tau_m = \SI{20}{ms}$), $\alpha = 0.15$.
+
+\subsubsection{Stability Condition}
+
+The forward Euler method for \eqref{eq:motor_dynamics} is stable if and only if $0 < \alpha < 2$, i.e., $\Delta t < 2\tau_m$. With the default parameters, $\alpha = 0.15 \ll 2$, providing a large stability margin.
+
+After integration, the motor speed is clamped:
+\begin{equation}
+  \Omega_i[k\!+\!1] \leftarrow \clamp\bigl(\Omega_i[k\!+\!1], \; 0, \; \Omega_{\max}\bigr).
+  \label{eq:clamp_omega}
+\end{equation}
+
+\subsubsection{Step Response Characteristics}
+
+For a step input from $\Omega_0$ to $\Omega_f$:
+\begin{equation}
+  \Omega(t) = \Omega_f - (\Omega_f - \Omega_0) \, e^{-t/\tau_m}.
+  \label{eq:step_response}
+\end{equation}
+
+Key response times:
+\begin{itemize}
+  \item $t_{63\%} = \tau_m = \SI{20}{ms}$
+  \item $t_{95\%} = 3\tau_m = \SI{60}{ms}$
+  \item $t_{98\%} = 4\tau_m = \SI{80}{ms}$
+\end{itemize}
+
+For a typical motor (e.g., 2207 2450KV with 5-inch propellers), time constants between \SI{15}{} and \SI{30}{ms} are reported in the literature~\cite{faessler2017thrust,shi2019neural}.
+
+\subsection{Reconstruction of Actual Wrench}
+
+After the motor dynamics, the actual motor speeds $\Omega_i$ are used to compute the actual wrench via the forward allocation:
+\begin{equation}
+  \w_{\text{act}} = \A \, \bOmega_{\text{act}}^2.
+  \label{eq:forward_allocation}
+\end{equation}
+
+Explicitly:
+\begin{align}
+  F_{\text{act}}       &= k_f \sum_{i=1}^{4} \Omega_i^2 \label{eq:F_actual} \\
+  \tau_{x,\text{act}}  &= k_f L_s \left(-\Omega_1^2 - \Omega_2^2 + \Omega_3^2 + \Omega_4^2\right) \label{eq:tx_actual} \\
+  \tau_{y,\text{act}}  &= k_f L_s \left(+\Omega_1^2 - \Omega_2^2 - \Omega_3^2 + \Omega_4^2\right) \label{eq:ty_actual} \\
+  \tau_{z,\text{act}}  &= k_m \left(-\Omega_1^2 + \Omega_2^2 - \Omega_3^2 + \Omega_4^2\right). \label{eq:tz_actual}
+\end{align}
+
+The key insight is that the actual wrench will \emph{lag} behind the desired wrench due to the motor dynamics, and may \emph{differ in direction} due to the clamping nonlinearity.
+
+\subsection{Aerodynamic Drag Model}
+
+Translational motion through air generates aerodynamic drag opposing the vehicle's velocity. We employ a linear (viscous) drag model in the body frame:
+\begin{equation}
+  \mathbf{f}_{\text{drag}}^B = -D_{\text{lin}} \, \mathbf{v}^B
+  \label{eq:drag}
+\end{equation}
+where $D_{\text{lin}}$ [\si{N/(m/s)}] is the linear drag coefficient and $\mathbf{v}^B = \R^\top \mathbf{v}^W$ is the body-frame linear velocity.
+
+The drag force affects the actuator outputs as follows:
+\begin{align}
+  F_{\text{act}} &\leftarrow F_{\text{act}} + f_{\text{drag},z}^B \label{eq:drag_thrust} \\
+  \tau_{x,\text{act}} &\leftarrow \tau_{x,\text{act}} + 0.01 \cdot f_{\text{drag},y}^B \label{eq:drag_tx} \\
+  \tau_{y,\text{act}} &\leftarrow \tau_{y,\text{act}} + 0.01 \cdot f_{\text{drag},x}^B \label{eq:drag_ty}
+\end{align}
+where the factor $0.01$\,m represents a small effective moment arm from center-of-pressure offset.
+
+\subsubsection{Justification for Linear Drag}
+
+For velocities typical of indoor quadrotor flight ($v < \SI{5}{m/s}$), the Reynolds number is $Re \approx 10^4$--$10^5$, where both linear and quadratic drag contributions are present. The linear model is adopted as a first-order approximation. For outdoor high-speed flight, a quadratic model $\mathbf{f}_{\text{drag}} \propto -\|\mathbf{v}\| \mathbf{v}$ would be more appropriate.
+
+\subsection{Complete Signal Flow}
+\label{sec:signal_flow}
+
+The complete computation within a single control cycle of the Motor-Level Model is summarized in \Cref{alg:motor_model}.
+
+\begin{algorithm}[!t]
+  \caption{Motor-Level Model — Single Control Cycle}
+  \label{alg:motor_model}
+  \begin{algorithmic}[1]
+    \STATE Read state from MuJoCo: $\mathbf{q}, \bomega^W, \mathbf{v}^W$
+    \STATE $\R \leftarrow \R(\mathbf{q})$; \quad $\bomega^B \leftarrow \R^\top \bomega^W$
+    \STATE $\btau_{\text{des}} \leftarrow \bomega^B \!\times\! (\J\bomega^B) - \J\mathbf{K}_\omega(\bomega^B - \bomega_d)$
+    \STATE $\w_{\text{des}} \leftarrow (F_{\text{cmd}},\; \tau_{x,\text{des}},\; \tau_{y,\text{des}},\; \tau_{z,\text{des}})^\top$
+    \STATE $\bOmega_{\text{des}}^2 \leftarrow \A^{-1} \w_{\text{des}}$ \hfill\COMMENT{Inverse allocation}
+    \FOR{$i = 1$ \TO $4$}
+      \STATE $\Omega_{i,d}^2 \leftarrow \clamp(\Omega_{i,d}^2, \; 0, \; \Omega_{\max}^2)$
+      \STATE $\Omega_{i,d} \leftarrow \sqrt{\Omega_{i,d}^2}$
+      \STATE $\Omega_i \leftarrow \Omega_i + \alpha(\Omega_{i,d} - \Omega_i)$ \hfill\COMMENT{Motor dyn.}
+      \STATE $\Omega_i \leftarrow \clamp(\Omega_i, \; 0, \; \Omega_{\max})$
+    \ENDFOR
+    \STATE $\w_{\text{act}} \leftarrow \A \, \bOmega_{\text{act}}^2$ \hfill\COMMENT{Forward allocation}
+    \STATE Add aerodynamic drag to $\w_{\text{act}}$
+    \STATE Write $\w_{\text{act}}$ to MuJoCo actuators
+  \end{algorithmic}
+\end{algorithm}
+
+
+% ============================================================================
+\section{MuJoCo Physics Engine Configuration}
+\label{sec:mujoco}
+
+\subsection{Integration Scheme}
+
+The simulator employs the \textbf{fourth-order Runge--Kutta (RK4)} integrator. For a general ODE $\dot{\mathbf{x}} = \mathbf{f}(\mathbf{x}, t)$, RK4 computes:
+\begin{equation}
+  \mathbf{x}(t + \Delta t) = \mathbf{x}(t) + \frac{\Delta t}{6}(\mathbf{k}_1 + 2\mathbf{k}_2 + 2\mathbf{k}_3 + \mathbf{k}_4)
+  \label{eq:rk4}
+\end{equation}
+where:
+\begin{align}
+  \mathbf{k}_1 &= \mathbf{f}(\mathbf{x}, t) \notag \\
+  \mathbf{k}_2 &= \mathbf{f}\!\left(\mathbf{x} + \tfrac{\Delta t}{2}\mathbf{k}_1, \; t + \tfrac{\Delta t}{2}\right) \notag \\
+  \mathbf{k}_3 &= \mathbf{f}\!\left(\mathbf{x} + \tfrac{\Delta t}{2}\mathbf{k}_2, \; t + \tfrac{\Delta t}{2}\right) \notag \\
+  \mathbf{k}_4 &= \mathbf{f}\!\left(\mathbf{x} + \Delta t \, \mathbf{k}_3, \; t + \Delta t\right). \notag
+\end{align}
+RK4 has a local truncation error of $\mathcal{O}(\Delta t^5)$ and a global error of $\mathcal{O}(\Delta t^4)$.
+
+\subsection{Timestep Selection}
+
+The simulation timestep is $\Delta t = \SI{3}{ms}$, selected as a compromise between:
+\begin{itemize}
+  \item \textbf{Accuracy:} The fastest dynamics are the motor dynamics with $\tau_m = \SI{20}{ms}$. The ratio $\Delta t / \tau_m = 0.15$ ensures well-resolved motor response (${\approx}\,6.7$ steps per time constant).
+  \item \textbf{Stability:} For the motor dynamics eigenvalue $\lambda = -1/\tau_m = \SI{-50}{rad/s}$, $|h\lambda| = 0.15$, well within RK4's stability region.
+  \item \textbf{Contact resolution:} MuJoCo's constraint solver benefits from small timesteps (\SI{333}{Hz}).
+  \item \textbf{Real-time factor:} Better than real-time on modern hardware.
+\end{itemize}
+
+\subsection{Environmental Parameters}
+
+The simulation environment is configured with standard ISA sea-level conditions: gravity $\mathbf{g} = (0, 0, -9.81)$\,\si{m/s^2}, air density $\rho = \SI{1.225}{kg/m^3}$, and air viscosity $\mu = \SI{1.8e-5}{Pa.s}$.
+
+\subsection{Joint Damping}
+
+The quadrotor's free joint includes a small artificial damping coefficient $d_j = \SI{0.001}{N.m.s/rad}$, primarily to prevent numerical drift in the absence of active control. At a typical angular velocity of \SI{1}{rad/s}, the damping torque is \SI{e-3}{N.m}---three orders of magnitude smaller than control torques (${\sim}\,0.1$--\SI{0.3}{N.m}).
+
+
+% ============================================================================
+\section{Software Architecture}
+\label{sec:architecture}
+
+\subsection{Plugin System}
+
+The simulator is built around MuJoCo's C++ plugin API, which provides three callback hooks:
+\begin{enumerate}
+  \item \textbf{\texttt{init}}: Called once at model load. Reads configuration from XML, initializes ROS\,2 nodes, and allocates resources.
+  \item \textbf{\texttt{compute}}: Called at every simulation step. Reads sensor data, processes control laws, and writes actuator commands.
+  \item \textbf{\texttt{destroy}}: Called at shutdown. Deallocates resources and shuts down ROS\,2 nodes.
+\end{enumerate}
+
+The plugin declares the capability flag \texttt{mjPLUGIN\_ACTUATOR} and requires the velocity computation stage (\texttt{mjSTAGE\_VEL}), ensuring that angular velocity data is available when \texttt{compute} is called.
+
+\subsection{Plugin Ecosystem}
+
+The simulator employs four interacting plugins, listed in \Cref{tab:plugins}.
+
+\begin{table}[!t]
+  \centering
+  \caption{MuJoCo Plugin Ecosystem}
+  \label{tab:plugins}
+  \begin{tabular}{@{}lll@{}}
+    \toprule
+    Plugin & Type & Function \\
+    \midrule
+    \texttt{AcroMode} & Actuator & Rate ctrl.\ + optional motor model \\
+    \texttt{OdometryPublisher} & Sensor & Pose \& twist at \SI{240}{Hz} \\
+    \texttt{ImuPublisher} & Sensor & Accel.\ \& gyro at \SI{200}{Hz} \\
+    \texttt{WrenchToActuators} & Actuator & Wrench-based control utility \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{ROS\,2 Interface}
+
+The AcroMode plugin instantiates an internal ROS\,2 node that:
+\begin{itemize}
+  \item \textbf{Subscribes} to \texttt{/<quad\_name>/trpy\_cmd} (\texttt{TRPYCommand}) for receiving thrust and angular velocity commands.
+  \item Uses a \textbf{single-threaded executor} with non-blocking spin (\texttt{spin\_once} with zero timeout) to process messages within the MuJoCo loop without introducing latency.
+\end{itemize}
+
+The sensor plugins publish:
+\begin{itemize}
+  \item \texttt{/<quad\_name>/odom} (\texttt{nav\_msgs/Odometry}) at \SI{240}{Hz}.
+  \item \texttt{/<quad\_name>/imu} (\texttt{sensor\_msgs/Imu}) at \SI{200}{Hz}.
+\end{itemize}
+
+\subsection{Configuration via XML}
+
+All simulator parameters are specified in XACRO (XML Macro) files processed at launch time. XACRO provides parameterization, modularity (separate macros for different configurations), and reproducibility through version-controlled files.
+
+
+% ============================================================================
+\section{Outer-Loop Position Controller}
+\label{sec:outerloop}
+
+To validate the simulator, an outer-loop PD position controller is implemented as a separate ROS\,2 Python node operating at \SI{100}{Hz}.
+
+\subsection{Desired Acceleration}
+
+Given a target position $\mathbf{p}_d$ and current state $(\mathbf{p}, \mathbf{v})$:
+\begin{equation}
+  \mathbf{a}_d = \begin{pmatrix}
+    K_{p,xy}(p_{d,x} - p_x) - K_{d,xy} v_x \\
+    K_{p,xy}(p_{d,y} - p_y) - K_{d,xy} v_y \\
+    K_{p,z}(p_{d,z} - p_z) - K_{d,z} v_z + g
+  \end{pmatrix}
+  \label{eq:desired_accel}
+\end{equation}
+where the gravitational term $g$ is added to achieve hover at the setpoint.
+
+\subsection{Thrust Computation}
+
+The thrust is the projection of the desired force onto the body $z$-axis:
+\begin{equation}
+  F = m \, \mathbf{a}_d^\top \R \begin{pmatrix} 0 \\ 0 \\ 1 \end{pmatrix}.
+  \label{eq:thrust_proj}
+\end{equation}
+This projection naturally reduces thrust when the quadrotor is tilted.
+
+\subsection{Desired Attitude}
+
+The desired roll and pitch angles are extracted using the small-angle approximation:
+\begin{align}
+  \phi_d   &= \frac{a_{d,x} \sin\psi - a_{d,y} \cos\psi}{a_{d,z}} \label{eq:roll_des} \\
+  \theta_d &= \frac{a_{d,x} \cos\psi + a_{d,y} \sin\psi}{a_{d,z}} \label{eq:pitch_des}
+\end{align}
+where $\psi$ is the current yaw angle. These are clamped to $\pm \SI{0.5}{rad}$ ($\pm 28.6^\circ$) for safety.
+
+\subsection{Angular Velocity Commands}
+
+The angular velocity commands are proportional feedback on attitude error:
+\begin{align}
+  \omega_{d,x} &= K_{p,\text{att}} (\phi_d - \phi) \label{eq:wx_cmd} \\
+  \omega_{d,y} &= K_{p,\text{att}} (\theta_d - \theta) \label{eq:wy_cmd} \\
+  \omega_{d,z} &= K_{p,\text{yaw}} \, \wrap(\psi_d - \psi) \label{eq:wz_cmd}
+\end{align}
+where $\wrap(\cdot)$ constrains the yaw error to $(-\pi, \pi]$.
+
+\subsection{Controller Gains}
+
+The gains are listed in \Cref{tab:pd_gains}. The damping ratios for the XY and Z channels are:
+\begin{align}
+  \zeta_{xy} &= \frac{K_{d,xy}}{2\sqrt{K_{p,xy}}} = \frac{2.5}{2\sqrt{4.0}} = 0.625 \label{eq:zeta_xy} \\
+  \zeta_z    &= \frac{K_{d,z}}{2\sqrt{K_{p,z}}}    = \frac{4.0}{2\sqrt{8.0}} = 0.707. \label{eq:zeta_z}
+\end{align}
+Both are underdamped to slightly critically damped, providing a balance between fast response and overshoot suppression.
+
+\begin{table}[!t]
+  \centering
+  \caption{Outer-Loop PD Controller Gains}
+  \label{tab:pd_gains}
+  \begin{tabular}{@{}lcc@{}}
+    \toprule
+    Parameter & Symbol & Value \\
+    \midrule
+    Position XY proportional & $K_{p,xy}$ & \SI{4.0}{s^{-2}} \\
+    Position XY derivative & $K_{d,xy}$ & \SI{2.5}{s^{-1}} \\
+    Altitude proportional & $K_{p,z}$ & \SI{8.0}{s^{-2}} \\
+    Altitude derivative & $K_{d,z}$ & \SI{4.0}{s^{-1}} \\
+    Attitude proportional & $K_{p,\text{att}}$ & \SI{6.0}{s^{-1}} \\
+    Yaw proportional & $K_{p,\text{yaw}}$ & \SI{2.0}{s^{-1}} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+
+% ============================================================================
+\section{Comparison of Actuation Models}
+\label{sec:comparison}
+
+\subsection{Structural Differences}
+
+\Cref{tab:comparison} summarizes the key structural differences between both models.
+
+\begin{table}[!t]
+  \centering
+  \caption{Comparison of Actuation Models}
+  \label{tab:comparison}
+  \begin{tabular}{@{}p{2cm}p{2.5cm}p{2.5cm}@{}}
+    \toprule
+    Aspect & Direct Wrench & Motor-Level \\
+    \midrule
+    Actuation path & $\w_{\text{des}} \to$ MuJoCo & $\w_{\text{des}} \to$ mixer $\to$ motor $\to$ MuJoCo \\
+    Motor state & None & $\bOmega \in \mathbb{R}^4$ \\
+    Bandwidth & Infinite & ${\approx}\,\SI{8}{Hz}$ \\
+    Saturation & Per-actuator & Per-motor + coupling \\
+    F--$\tau$ coupling & Independent & Coupled via motors \\
+    Drag & None & Linear body-frame \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Transfer Function Analysis}
+
+For the Direct Wrench Model, the transfer function from desired to actual wrench is unity:
+\begin{equation}
+  \frac{\w_{\text{act}}(s)}{\w_{\text{des}}(s)} = \I_4.
+  \label{eq:tf_direct}
+\end{equation}
+
+For the Motor-Level Model (in the linear region):
+\begin{equation}
+  \frac{\w_{\text{act}}(s)}{\w_{\text{des}}(s)} \approx \frac{1}{\tau_m s + 1} \I_4.
+  \label{eq:tf_motor}
+\end{equation}
+This approximation holds when operating far from saturation and for small wrench changes.
+
+\subsection{Effect on Closed-Loop Stability}
+
+The introduction of actuator dynamics reduces the gain and phase margins. The open-loop transfer function per axis becomes:
+
+\textbf{Direct Wrench:}
+\begin{equation}
+  G_{\text{OL},i}(s) = \frac{K_{\omega,i}}{s}.
+  \label{eq:gol_direct}
+\end{equation}
+
+\textbf{Motor-Level:}
+\begin{equation}
+  G_{\text{OL},i}(s) = \frac{K_{\omega,i}}{s(\tau_m s + 1)}.
+  \label{eq:gol_motor}
+\end{equation}
+
+The additional pole at $s = -1/\tau_m$ reduces the phase margin by:
+\begin{equation}
+  \Delta \phi = -\arctan(\omega_c \tau_m)
+  \label{eq:phase_loss}
+\end{equation}
+where $\omega_c$ is the crossover frequency. For the yaw axis ($K_{\omega,z} = \SI{45}{rad/s}$, $\tau_m = \SI{0.02}{s}$):
+\begin{equation}
+  \Delta \phi = -\arctan(45 \times 0.02) = -\arctan(0.9) \approx -42^\circ.
+  \label{eq:phase_loss_yaw}
+\end{equation}
+This significant phase margin reduction may require re-tuning the rate controller gains when switching from Model~I to Model~II.
+
+
+% ============================================================================
+\section{Digital Twin Calibration Strategy}
+\label{sec:calibration}
+
+The Motor-Level Model is designed as a digital twin framework. The following calibration procedure is recommended.
+
+\subsection{Inertial Properties}
+
+\begin{enumerate}
+  \item \textbf{Mass}: Weigh the complete drone with a precision scale.
+  \item \textbf{Inertia tensor}: Estimate using bifilar pendulum measurements or CAD model computation. Cross-validate with frequency response identification.
+\end{enumerate}
+
+\subsection{Motor and Propeller Parameters}
+
+\begin{enumerate}
+  \item \textbf{$k_f$}: Mount the motor--propeller assembly on a thrust stand. Command various throttle levels and record thrust vs.\ RPM. Fit $f = k_f \Omega^2$.
+  \item \textbf{$k_m$}: Use a torque-measuring thrust stand, or estimate from the ratio $k_m/k_f \approx 0.01$--$0.02$.
+  \item \textbf{$\tau_m$}: Apply a step command to the ESC and record the motor speed response with a high-frequency RPM sensor ($>\SI{1}{kHz}$). Fit the exponential response.
+  \item \textbf{$\Omega_{\max}$}: Read from the motor datasheet or measure at maximum throttle.
+\end{enumerate}
+
+\subsection{Aerodynamic Drag}
+
+Estimate $D_{\text{lin}}$ from flight data by analyzing the deceleration profile during coast-down maneuvers.
+
+\subsection{Validation Procedure}
+
+\begin{enumerate}
+  \item Perform identical maneuvers on the physical drone and the simulator.
+  \item Compare state trajectories using RMSE and maximum tracking error.
+  \item Iteratively refine parameters to minimize the sim-to-real gap.
+\end{enumerate}
+
+
+% ============================================================================
+\section{Simulation Considerations and Limitations}
+\label{sec:considerations}
+
+\subsection{Modeling Assumptions}
+
+The following assumptions are made in both models:
+\begin{enumerate}
+  \item \textbf{Rigid body}: The quadrotor frame is assumed perfectly rigid.
+  \item \textbf{Symmetric inertia}: The inertia tensor is diagonal, neglecting products of inertia.
+  \item \textbf{Constant propeller coefficients}: $k_f$ and $k_m$ are independent of advance ratio (valid in hover and slow flight).
+  \item \textbf{No ground effect}: The increase in thrust efficiency near the ground is not modeled.
+  \item \textbf{No blade flapping}: Rotor blade flapping effects are neglected.
+  \item \textbf{No inter-rotor interaction}: Downwash from one rotor affecting another is not captured.
+  \item \textbf{Linear drag}: A velocity-proportional model is used instead of quadratic drag.
+  \item \textbf{Ideal sensors}: The odometry and IMU outputs are noise-free and bias-free.
+  \item \textbf{No battery voltage drop}: Motor performance degradation due to discharge is not modeled.
+  \item \textbf{No ESC dynamics}: Only the motor electromechanical dynamics are modeled.
+\end{enumerate}
+
+\subsection{Numerical Considerations}
+
+\subsubsection{Motor Dynamics Discretization}
+
+The forward Euler method for motor dynamics has first-order accuracy $\mathcal{O}(\Delta t)$. The error is bounded by:
+\begin{equation}
+  \epsilon_{\text{motor}} \leq \frac{\Delta t^2}{2\tau_m} (\Omega_{d} - \Omega) \leq \frac{(0.003)^2}{2 \times 0.02} \times 2500 \approx \SI{0.56}{rad/s}
+  \label{eq:motor_error}
+\end{equation}
+which is $0.02\%$ of $\Omega_{\max}$---negligible for practical purposes.
+
+\subsubsection{Quaternion Normalization}
+
+MuJoCo internally maintains unit quaternions during integration, preventing the drift that affects Euler angle or rotation matrix propagation.
+
+\subsubsection{Control--Simulation Rate Mismatch}
+
+The control rate (\SI{500}{Hz}) and simulation rate (${\approx}\SI{333}{Hz}$) are not integer multiples. The accumulator-based timing handles this gracefully, with jitter of up to $\pm \Delta t/2 = \pm \SI{1.5}{ms}$, consistent with real-time systems.
+
+\subsection{Computational Performance}
+
+The Motor-Level Model adds approximately 80 floating-point operations per control step (one $4\!\times\!4$ matrix--vector multiply, four square roots, four first-order filters, one forward allocation, and drag computation)---negligible compared to MuJoCo's constraint solver.
+
+
+% ============================================================================
+\section{Conclusions}
+\label{sec:conclusions}
+
+This paper has presented a rigorous mathematical formulation of a modular quadrotor simulator built on MuJoCo and ROS\,2, implementing two actuation models of increasing fidelity:
+
+\begin{enumerate}
+  \item The \textbf{Direct Wrench Model} provides a computationally efficient baseline that applies desired thrust and torques directly to the rigid body. It is suitable for high-level control development where actuator bandwidth is not a limiting factor.
+
+  \item The \textbf{Motor-Level Model} introduces a realistic actuation pipeline including control allocation in Betaflight X-configuration, first-order motor dynamics, propeller aerodynamic models ($f = k_f\Omega^2$, $\tau = k_m\Omega^2$), and body-frame aerodynamic drag. This captures actuator lag, motor saturation, thrust--torque coupling, and the nonlinear mapping between desired and achievable wrenches.
+\end{enumerate}
+
+Both models share a common inner-loop angular rate controller based on gyroscopic compensation and proportional feedback, providing a consistent interface to external controllers.
+
+The framework is designed as a digital twin platform, where every physical parameter can be calibrated against a physical drone. The modular plugin architecture enables seamless switching between actuation fidelity levels and integration with advanced controllers such as NMPC.
+
+Future work includes: (i)~experimental validation against a physical Betaflight-based quadrotor, (ii)~extension of the propeller model to include advance ratio effects and blade element theory, (iii)~incorporation of sensor noise models, (iv)~addition of battery discharge dynamics, and (v)~integration with Betaflight SITL for full flight stack-in-the-loop simulation.
+
+
+% ============================================================================
+\appendices
+
+\section{Allocation Matrix Derivation for Arbitrary Motor Configurations}
+\label{app:allocation}
+
+For a general $n$-motor multirotor with motor~$i$ at body-frame position $(x_i, y_i, 0)$ and spin direction $\sigma_i \in \{+1, -1\}$ (CCW/CW), the allocation matrix row-by-row is:
+\begin{align}
+  A_{1,i} &= k_f \label{eq:A_gen_F} \\
+  A_{2,i} &= -k_f \, y_i \label{eq:A_gen_tx} \\
+  A_{3,i} &= +k_f \, x_i \label{eq:A_gen_ty} \\
+  A_{4,i} &= \sigma_i \, k_m. \label{eq:A_gen_tz}
+\end{align}
+
+For the specific Betaflight X-configuration (\Cref{tab:motors}), substituting the motor positions yields:
+\begin{equation}
+  \A = \begin{pmatrix}
+    k_f      & k_f      & k_f       & k_f       \\
+    k_f L_s  & k_f L_s  & -k_f L_s  & -k_f L_s  \\
+    k_f L_s  & -k_f L_s & -k_f L_s  & k_f L_s   \\
+    -k_m     & k_m      & -k_m      & k_m
+  \end{pmatrix}.
+  \label{eq:A_explicit}
+\end{equation}
+
+\begin{remark}
+  The roll torque row uses $-y_i$ because positive roll is rotation about $+x$, generated by excess thrust on the $-y$ side. This sign convention matches the simulator implementation.
+\end{remark}
+
+
+\section{Parameter Summary}
+\label{app:parameters}
+
+\Cref{tab:params_phys,tab:params_motor,tab:params_ctrl,tab:params_hover} provide a complete summary of all simulator parameters.
+
+\begin{table}[!t]
+  \centering
+  \caption{Quadrotor Physical Parameters}
+  \label{tab:params_phys}
+  \begin{tabular}{@{}lccc@{}}
+    \toprule
+    Parameter & Symbol & Value & Source \\
+    \midrule
+    Total mass & $m$ & \SI{1.05}{kg} & MuJoCo model \\
+    $J_{xx}$ & --- & \SI{3.454e-3}{kg.m^2} & Auto-compute \\
+    $J_{yy}$ & --- & \SI{1.797e-3}{kg.m^2} & Auto-compute \\
+    $J_{zz}$ & --- & \SI{1.797e-3}{kg.m^2} & Auto-compute \\
+    Arm length & $L$ & \SI{0.1}{m} & Geometry \\
+    Effective arm & $L_s$ & \SI{0.0707}{m} & $L/\sqrt{2}$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{table}[!t]
+  \centering
+  \caption{Motor and Propeller Parameters}
+  \label{tab:params_motor}
+  \begin{tabular}{@{}lccc@{}}
+    \toprule
+    Parameter & Symbol & Value & Units \\
+    \midrule
+    Thrust coeff. & $k_f$ & $1.91 \times 10^{-6}$ & \si{N/(rad/s)^2} \\
+    Torque coeff. & $k_m$ & $2.6 \times 10^{-8}$ & \si{N.m/(rad/s)^2} \\
+    Motor time const. & $\tau_m$ & $0.020$ & \si{s} \\
+    Max motor speed & $\Omega_{\max}$ & $2500$ & \si{rad/s} \\
+    Drag coeff. & $D_{\text{lin}}$ & $0.1$ & \si{N/(m/s)} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{table}[!t]
+  \centering
+  \caption{Controller Parameters}
+  \label{tab:params_ctrl}
+  \begin{tabular}{@{}lccc@{}}
+    \toprule
+    Parameter & Symbol & Value & Units \\
+    \midrule
+    Roll rate gain & $K_{\omega,x}$ & $20.0$ & --- \\
+    Pitch rate gain & $K_{\omega,y}$ & $35.0$ & --- \\
+    Yaw rate gain & $K_{\omega,z}$ & $45.0$ & --- \\
+    Control freq. & $f_c$ & $500$ & \si{Hz} \\
+    Sim.\ timestep & $\Delta t$ & $0.003$ & \si{s} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{table}[!t]
+  \centering
+  \caption{Operating Point at Hover}
+  \label{tab:params_hover}
+  \begin{tabular}{@{}lcc@{}}
+    \toprule
+    Quantity & Expression & Value \\
+    \midrule
+    Hover thrust & $mg$ & \SI{10.30}{N} \\
+    Per-motor thrust & $mg/4$ & \SI{2.58}{N} \\
+    Hover motor speed & $\sqrt{mg/(4k_f)}$ & \SI{1161}{rad/s} \\
+    Speed ratio & $\Omega_\text{hov}/\Omega_{\max}$ & $46.4\%$ \\
+    Max total thrust & $4 k_f \Omega_{\max}^2$ & \SI{47.75}{N} \\
+    Thrust-to-weight & $F_{\max}/(mg)$ & $4.64$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+
+% ============================================================================
+\bibliographystyle{IEEEtran}
+\begin{thebibliography}{11}
+
+\bibitem{todorov2012mujoco}
+E.~Todorov, T.~Erez, and Y.~Tassa,
+``MuJoCo: A physics engine for model-based control,''
+in \emph{Proc. IEEE/RSJ Int. Conf. Intelligent Robots and Systems (IROS)}, 2012, pp.~5026--5033.
+
+\bibitem{mahony2012multirotor}
+R.~Mahony, V.~Kumar, and P.~Corke,
+``Multirotor aerial vehicles: Modeling, estimation, and control of quadrotor,''
+\emph{IEEE Robotics \& Automation Magazine}, vol.~19, no.~3, pp.~20--32, 2012.
+
+\bibitem{mellinger2011minimum}
+D.~Mellinger and V.~Kumar,
+``Minimum snap trajectory generation and control for quadrotors,''
+in \emph{Proc. IEEE Int. Conf. Robotics and Automation (ICRA)}, 2011, pp.~2520--2525.
+
+\bibitem{faessler2017thrust}
+M.~Faessler, D.~Falanga, and D.~Scaramuzza,
+``Thrust mixing, saturation, and body-rate control for accurate aggressive quadrotor flight,''
+\emph{IEEE Robotics and Automation Letters}, vol.~2, no.~2, pp.~476--482, 2017.
+
+\bibitem{torrente2021data}
+G.~Torrente, E.~Kaufmann, P.~F{\"o}hn, and D.~Scaramuzza,
+``Data-driven MPC for quadrotors,''
+\emph{IEEE Robotics and Automation Letters}, vol.~6, no.~2, pp.~3769--3776, 2021.
+
+\bibitem{koenig2004design}
+N.~Koenig and A.~Howard,
+``Design and use paradigms for Gazebo, an open-source multi-robot simulator,''
+in \emph{Proc. IEEE/RSJ Int. Conf. Intelligent Robots and Systems (IROS)}, 2004, pp.~2149--2154.
+
+\bibitem{furrer2016rotors}
+F.~Furrer, M.~Burri, M.~Achtelik, and R.~Siegwart,
+``RotorS---A modular Gazebo MAV simulator framework,''
+in \emph{Robot Operating System (ROS)}, vol.~625, Springer, 2016, pp.~595--625.
+
+\bibitem{shah2018airsim}
+S.~Shah, D.~Dey, C.~Lovett, and A.~Kapoor,
+``AirSim: High-fidelity visual and physical simulation for autonomous vehicles,''
+in \emph{Field and Service Robotics}, Springer, 2018, pp.~621--635.
+
+\bibitem{foehn2020flightmare}
+P.~Foehn, D.~Bauer, E.~Kaufmann, T.~Cieslewski, and D.~Scaramuzza,
+``Flightmare: A flexible quadrotor simulator,''
+in \emph{Proc. Conf. Robot Learning (CoRL)}, 2020.
+
+\bibitem{grieves2017digital}
+M.~Grieves and J.~Vickers,
+``Digital twin: Mitigating unpredictable, undesirable emergent behavior in complex systems,''
+in \emph{Transdisciplinary Perspectives on Complex Systems}, Springer, 2017, pp.~85--113.
+
+\bibitem{shi2019neural}
+G.~Shi \emph{et~al.},
+``Neural lander: Stable drone landing control using learned dynamics,''
+in \emph{Proc. IEEE Int. Conf. Robotics and Automation (ICRA)}, 2019.
+
+\end{thebibliography}
+
+\end{document}

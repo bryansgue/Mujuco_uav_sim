@@ -1,0 +1,37 @@
+/home/bryansgue/uav_ws/src/MujocoRosUtils/plugin/AcroMode.cpp:144:3: warning: multi-line comment [-Wcomment]
+  144 |   //         /      \
+      |   ^
+/home/bryansgue/uav_ws/src/MujocoRosUtils/plugin/AcroMode.cpp: In constructor ‘MujocoRosUtils::AcroMode::AcroMode(const mjModel*, mjData*, int, int, int, int, std::string, double, int, std::string, bool, double, double, double, double, double, double)’:
+/home/bryansgue/uav_ws/src/MujocoRosUtils/plugin/AcroMode.cpp:112:36: warning: unused parameter ‘m’ [-Wunused-parameter]
+  112 | AcroMode::AcroMode(const mjModel * m,
+      |                    ~~~~~~~~~~~~~~~~^
+/home/bryansgue/uav_ws/src/MujocoRosUtils/plugin/AcroMode.cpp:113:29: warning: unused parameter ‘d’ [-Wunused-parameter]
+  113 |                    mjData * d,
+      |                    ~~~~~~~~~^
+/home/bryansgue/uav_ws/src/MujocoRosUtils/plugin/AcroMode.cpp:118:32: warning: unused parameter ‘topic’ [-Wunused-parameter]
+  118 |                    std::string topic,
+      |                    ~~~~~~~~~~~~^~~~~
+CMake Error: Invalid value used with --config
+Usage: cmake --build <dir>             [options] [-- [native-options]]
+       cmake --build --preset <preset> [options] [-- [native-options]]
+Options:
+  <dir>          = Project binary directory to be built.
+  --preset <preset>, --preset=<preset>
+                 = Specify a build preset.
+  --list-presets
+                 = List available build presets.
+  --parallel [<jobs>], -j [<jobs>]
+                 = Build in parallel using the given number of jobs. 
+                   If <jobs> is omitted the native build tool's 
+                   default number is used.
+                   The CMAKE_BUILD_PARALLEL_LEVEL environment variable
+                   specifies a default parallel level when this option
+                   is not given.
+  --target <tgt>..., -t <tgt>... 
+                 = Build <tgt> instead of default targets.
+  --config <cfg> = For multi-configuration tools, choose <cfg>.
+  --clean-first  = Build target 'clean' first, then build.
+                   (To clean only, use --target 'clean'.)
+  --verbose, -v  = Enable verbose output - if supported - including
+                   the build commands to be executed. 
+  --             = Pass remaining options to the native tool.
