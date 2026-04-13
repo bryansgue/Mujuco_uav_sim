@@ -238,13 +238,75 @@ echo 'export COLCON_UAV_WS_DIR=/home/bryansgue/uav_ws' >> ~/.bashrc
 
 ## Cómo Correr
 
-### Terminal 1: Simulador
+### Requisitos previos (en cada terminal nueva)
 ```bash
 cd /home/bryansgue/uav_ws
 source install/setup.bash
-ros2 launch drone_teleop mujoco_only.launch.py
+# Asegurar que la variable de entorno esté seteada:
+export COLCON_UAV_WS_DIR=/home/bryansgue/uav_ws
 ```
-Esto abre la ventana gráfica de MuJoCo con el drone en el suelo.
+
+> Si ya agregaste `COLCON_UAV_WS_DIR` a tu `~/.bashrc`, no necesitas exportarla manualmente.
+
+### Terminal 1: Simulador MuJoCo
+
+El launch file acepta el argumento `scene:=` para elegir la escena:
+
+```bash
+ros2 launch drone_teleop mujoco_only.launch.py scene:=<ESCENA>
+```
+
+#### Escenas disponibles
+
+| Escena | Comando | Descripcion |
+|--------|---------|-------------|
+| `payload` **(default)** | `ros2 launch drone_teleop mujoco_only.launch.py` | Drone + payload (esfera azul) con cable de 0.8m, paredes |
+| `nopayload` | `ros2 launch drone_teleop mujoco_only.launch.py scene:=nopayload` | Drone libre sin carga ni cable, paredes |
+| `motors` | `ros2 launch drone_teleop mujoco_only.launch.py scene:=motors` | Drone con modelo de motores realista (gemelo digital), paredes |
+| `motors_nowall` | `ros2 launch drone_teleop mujoco_only.launch.py scene:=motors_nowall` | Drone con modelo de motores realista, sin paredes |
+
+#### Diferencia entre modos SIN y CON modelo de motores
+
+**Sin modelo de motores** (`payload`, `nopayload`):
+- Usa `quadrotor_acro_macro.xml.xacro`
+- Los actuadores aplican **directamente** fuerza y torques al cuerpo: `[Fz, Tx, Ty, Tz]`
+- Modelo "ideal" — sin dinamica de motor
+
+**Con modelo de motores** (`motors`, `motors_nowall`):
+- Usa `quadrotor_acro_macro_motors.xml.xacro`
+- Tiene helices visuales que giran (4 propellers con joints hinge)
+- El plugin `AcroMode` tiene `motor_model="true"`: pasa el wrench deseado por un modelo de motor de primer orden antes de escribir en los actuadores
+- Parametros del modelo de motor:
+  - `kf = 1.91e-6` — coef. thrust (`F = kf * omega^2`)
+  - `km = 2.6e-8` — coef. torque (`tau = km * omega^2`)
+  - `motor_tau = 0.02 s` — constante de tiempo del motor
+  - `motor_omega_max = 2500 rad/s` — velocidad angular max
+  - `arm_length = 0.1 m` — distancia centro-motor
+  - `drag_coeff = 0.1` — drag aerodinamico
+- Incluye `CollisionPublisher` (publica en `/quadrotor/collision`)
+
+#### Argumentos opcionales del launch
+
+| Argumento | Default | Descripcion |
+|-----------|---------|-------------|
+| `scene` | `payload` | Escena a cargar (ver tabla arriba) |
+| `quad_name` | `quadrotor` | Nombre/prefijo del drone |
+| `init_x` | `0.0` | Posicion inicial X [m] |
+| `init_y` | `0.0` | Posicion inicial Y [m] |
+| `init_z` | `0.02` | Posicion inicial Z [m] |
+| `init_yaw` | `0.0` | Yaw inicial [rad] |
+
+Ejemplo con argumentos:
+```bash
+ros2 launch drone_teleop mujoco_only.launch.py scene:=motors init_x:=1.0 init_z:=0.5
+```
+
+#### Alternativa: wrapper script (cierre limpio con Ctrl+C)
+```bash
+ros2 run drone_teleop mujoco_launch.sh scene:=motors
+```
+
+Esto abre la ventana grafica de MuJoCo con el drone en el suelo.
 
 ### Terminal 2: Control interactivo
 ```bash
