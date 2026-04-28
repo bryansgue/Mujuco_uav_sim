@@ -202,6 +202,8 @@ orientation            → w, x, y, z      [-]     quaternion
 | `/quadrotor/odom` | nav_msgs/Odometry | MuJoCo → TU código | 240 | OdometryPublisher |
 | `/quadrotor/imu` | sensor_msgs/Imu | MuJoCo → TU código | 200 | ImuPublisher |
 | `/quadrotor/trpy_cmd` | quadrotor_msgs/TRPYCommand | TU código → MuJoCo | tú decides | AcroMode |
+| `/quadrotor/external_force` | mujoco_ros_utils/ExternalForce | wind_publisher → MuJoCo | 100 | ExternalForce (persistent) |
+| `/quadrotor/collision` | std_msgs/Bool | MuJoCo → TU código | 100 | CollisionPublisher (solo `motors*`) |
 
 ---
 
@@ -264,6 +266,7 @@ ros2 launch drone_teleop mujoco_only.launch.py scene:=<ESCENA>
 | `nopayload` | `ros2 launch drone_teleop mujoco_only.launch.py scene:=nopayload` | Drone libre sin carga ni cable, paredes |
 | `motors` | `ros2 launch drone_teleop mujoco_only.launch.py scene:=motors` | Drone con modelo de motores realista (gemelo digital), paredes |
 | `motors_nowall` | `ros2 launch drone_teleop mujoco_only.launch.py scene:=motors_nowall` | Drone con modelo de motores realista, sin paredes |
+| `gates` | `ros2 launch drone_teleop mujoco_only.launch.py scene:=gates` | Drone con motores + circuito de 8 gates de carrera (sin colisión, atravesables), con paredes |
 
 #### Diferencia entre modos SIN y CON modelo de motores
 
@@ -307,6 +310,72 @@ ros2 run drone_teleop mujoco_launch.sh scene:=motors
 ```
 
 Esto abre la ventana grafica de MuJoCo con el drone en el suelo.
+
+### Perturbaciones realistas (viento + turbulencia + ráfagas)
+
+El simulador incluye un nodo `wind_publisher` que aplica una fuerza externa continua al drone, compuesta por tres elementos aeroespaciales estándar:
+
+- **Viento medio** — proceso de Ornstein-Uhlenbeck (baseline lentamente variable)
+- **Turbulencia** — filtro tipo Dryden (MIL-HDBK-1797), ancho de banda
+- **Ráfagas discretas** — impulsos con envolvente (1-cos), dirección aleatoria
+
+La fuerza se publica en `/<quad_name>/external_force` y se aplica al drone vía el plugin `MujocoRosUtils::ExternalForce` en modo `persistent=true` (se visualiza como una flecha roja sobre el drone).
+
+#### Activar perturbación desde el launch
+
+```bash
+# SIN perturbación (default):
+ros2 launch drone_teleop mujoco_only.launch.py scene:=motors_nowall
+
+# CON perturbación suave (recomendado para empezar):
+ros2 launch drone_teleop mujoco_only.launch.py scene:=motors_nowall wind:=true
+
+# CON perturbación personalizada:
+ros2 launch drone_teleop mujoco_only.launch.py scene:=motors_nowall \
+     wind:=true turbulence:=moderate mean_wind_speed:=2.0 wind_seed:=42
+```
+
+Argumentos de launch relacionados con viento:
+
+| Argumento | Default | Descripción |
+|-----------|---------|-------------|
+| `wind` | `false` | Si `true`, arranca `wind_publisher` junto al simulador |
+| `turbulence` | `moderate` | Nivel de turbulencia: `light`, `moderate`, `severe` |
+| `mean_wind_speed` | `1.5` | Velocidad media del viento [m/s] |
+| `wind_seed` | `-1` | Semilla RNG (`-1` = aleatoria, ≥0 = reproducible) |
+
+#### Arrancar el nodo por separado (para más control)
+
+```bash
+ros2 run drone_teleop wind_publisher --ros-args \
+  -p turbulence_level:=moderate \
+  -p mean_wind_speed:=2.0 \
+  -p drag_coef:=0.08 \
+  -p gust_amp_max:=2.5 \
+  -p gust_probability:=0.003 \
+  -p force_limit:=4.0
+```
+
+#### Niveles sugeridos de intensidad (dron 1.08 kg, hover ~10.6 N)
+
+| Nivel | `mean_wind_speed` | `drag_coef` | `gust_amp_max` | `force_limit` | Fuerza pico | % hover |
+|---|---:|---:|---:|---:|---:|---:|
+| Suave (default) | 1.5 | 0.04 | 1.5 N | 3.0 N | ~2 N | 19% |
+| **Medio** | **2.0** | **0.08** | **2.5 N** | **4.0 N** | ~3.5 N | 33% |
+| Fuerte | 3.0 | 0.12 | 4.0 N | 6.0 N | ~5.5 N | 52% |
+| Brutal (solo robustez) | 4.0 | 0.18 | 6.0 N | 8.0 N | ~7.5 N | 71% |
+
+> **Regla práctica**: si la fuerza total se acerca a ~50% del hover thrust, el controlador empieza a derivar. Si supera ~80%, el drone se va inevitablemente.
+
+#### Publicar una perturbación manual puntual
+
+También puedes publicar una fuerza manual (útil para tests deterministas):
+
+```bash
+ros2 topic pub --once /quadrotor/external_force mujoco_ros_utils/msg/ExternalForce \
+  "{duration: {sec: 2, nanosec: 0}, pos: {x: 0, y: 0, z: 0}, force: {x: 3.0, y: 0.0, z: 0.0}}"
+```
+(El campo `duration` se ignora en modo `persistent`; la fuerza persiste hasta recibir un nuevo mensaje o cero.)
 
 ### Terminal 2: Control interactivo
 ```bash
@@ -482,6 +551,8 @@ ros2 run mi_control nodo
 | `MujocoRosUtils/plugin/AcroMode.cpp` | Plugin que recibe TRPYCommand y aplica fuerzas |
 | `MujocoRosUtils/plugin/OdometryPublisher.cpp` | Plugin que publica odometría |
 | `MujocoRosUtils/plugin/ImuPublisher.cpp` | Plugin que publica IMU |
+| `MujocoRosUtils/plugin/ExternalForce.cpp` | Plugin que aplica fuerza externa (modo `persistent`) |
+| `drone_teleop/drone_teleop/wind_publisher.py` | Nodo Python: viento realista (OU + Dryden + ráfagas) |
 | `quadrotor_msgs/msg_ros2/control_cmds/TRPYCommand.msg` | Definición del mensaje de control |
 
 ---
@@ -495,4 +566,164 @@ ros2 run mi_control nodo
 | `No se recibió /quadrotor/odom` | El simulador no está corriendo. Lanza Terminal 1 primero |
 | `quadrotor_msgs not found` | `colcon build` y luego `source install/setup.bash` |
 | `MUJOCO_ROOT_DIR not set` | Compilar con: `colcon build --cmake-args -DMUJOCO_ROOT_DIR=.../mujoco-3.4.0` |
+
+---
+
+## Cheatsheet ROS2 (comandos al alcance)
+
+### Setup base (cada terminal nueva)
+```bash
+cd /home/bryansgue/uav_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+export COLCON_UAV_WS_DIR=/home/bryansgue/uav_ws
+```
+
+### Compilar
+```bash
+# Todo:
+colcon build --symlink-install --cmake-args -DMUJOCO_ROOT_DIR=/home/bryansgue/uav_ws/mujoco-3.4.0
+
+# Solo un paquete:
+colcon build --symlink-install --cmake-args -DMUJOCO_ROOT_DIR=/home/bryansgue/uav_ws/mujoco-3.4.0 --packages-select acp_mujoco_simulator
+colcon build --symlink-install --packages-select drone_teleop
+colcon build --symlink-install --packages-select MujocoRosUtils
+colcon build --symlink-install --packages-select quadrotor_msgs
+
+# Limpiar build:
+rm -rf build install log
+```
+
+### Lanzar simulador (Terminal 1) — todas las escenas
+```bash
+# payload (default): drone + carga colgante + paredes
+ros2 launch drone_teleop mujoco_only.launch.py
+
+# nopayload: drone libre + paredes
+ros2 launch drone_teleop mujoco_only.launch.py scene:=nopayload
+
+# motors: gemelo digital con dinámica de motores + paredes
+ros2 launch drone_teleop mujoco_only.launch.py scene:=motors
+
+# motors_nowall: motores sin paredes
+ros2 launch drone_teleop mujoco_only.launch.py scene:=motors_nowall
+
+# gates: motores + 8 gates de carrera (atravesables)
+ros2 launch drone_teleop mujoco_only.launch.py scene:=gates
+
+# Con pose inicial:
+ros2 launch drone_teleop mujoco_only.launch.py scene:=gates init_x:=0.0 init_y:=0.0 init_z:=1.0 init_yaw:=0.0
+```
+
+### Lanzar con viento/turbulencia
+```bash
+# Suave (default):
+ros2 launch drone_teleop mujoco_only.launch.py scene:=motors_nowall wind:=true
+
+# Personalizado:
+ros2 launch drone_teleop mujoco_only.launch.py scene:=motors_nowall \
+     wind:=true turbulence:=moderate mean_wind_speed:=2.0 wind_seed:=42
+
+# Fuerte:
+ros2 launch drone_teleop mujoco_only.launch.py scene:=motors_nowall \
+     wind:=true turbulence:=severe mean_wind_speed:=3.0
+```
+
+### Wind publisher por separado (más control)
+```bash
+ros2 run drone_teleop wind_publisher --ros-args \
+  -p turbulence_level:=moderate \
+  -p mean_wind_speed:=2.0 \
+  -p drag_coef:=0.08 \
+  -p gust_amp_max:=2.5 \
+  -p gust_probability:=0.003 \
+  -p force_limit:=4.0
+```
+
+### Control interactivo (Terminal 2)
+```bash
+# CLI teleop:
+ros2 run drone_teleop teleop
+
+# Cierre limpio Ctrl+C:
+ros2 run drone_teleop mujoco_launch.sh scene:=gates
+```
+
+### Comandos directos por topic
+```bash
+# Hover one-shot:
+ros2 topic pub --once /quadrotor/trpy_cmd quadrotor_msgs/msg/TRPYCommand \
+  "{thrust: 10.6, angular_velocity: {x: 0.0, y: 0.0, z: 0.0}}"
+
+# Hover continuo a 100Hz:
+ros2 topic pub -r 100 /quadrotor/trpy_cmd quadrotor_msgs/msg/TRPYCommand \
+  "{thrust: 10.6, angular_velocity: {x: 0.0, y: 0.0, z: 0.0}}"
+
+# Fuerza externa puntual (3 N en X):
+ros2 topic pub --once /quadrotor/external_force mujoco_ros_utils/msg/ExternalForce \
+  "{duration: {sec: 0, nanosec: 0}, pos: {x: 0, y: 0, z: 0}, force: {x: 3.0, y: 0.0, z: 0.0}}"
+
+# Limpiar fuerza externa:
+ros2 topic pub --once /quadrotor/external_force mujoco_ros_utils/msg/ExternalForce \
+  "{duration: {sec: 0, nanosec: 0}, pos: {x: 0, y: 0, z: 0}, force: {x: 0.0, y: 0.0, z: 0.0}}"
+```
+
+### Inspección / debug topics
+```bash
+# Listar todos:
+ros2 topic list
+
+# Ver odometría (solo posición):
+ros2 topic echo /quadrotor/odom --field pose.pose.position
+
+# Ver IMU:
+ros2 topic echo /quadrotor/imu
+
+# Ver colisión (solo escenas motors*/gates):
+ros2 topic echo /quadrotor/collision
+
+# Ver comandos enviados:
+ros2 topic echo /quadrotor/trpy_cmd
+
+# Frecuencia de publicación:
+ros2 topic hz /quadrotor/odom
+ros2 topic hz /quadrotor/imu
+
+# Info del topic (tipo, publishers, subscribers):
+ros2 topic info /quadrotor/trpy_cmd -v
+
+# Ver definición del mensaje:
+ros2 interface show quadrotor_msgs/msg/TRPYCommand
+ros2 interface show mujoco_ros_utils/msg/ExternalForce
+```
+
+### Nodos / servicios
+```bash
+ros2 node list
+ros2 node info /quadrotor/acro_ctrl
+ros2 service list
+ros2 service call /sim/reset std_srvs/srv/Empty
+```
+
+### Grabar y reproducir (rosbag)
+```bash
+# Grabar topics relevantes:
+ros2 bag record -o vuelo_$(date +%Y%m%d_%H%M%S) \
+  /quadrotor/odom /quadrotor/imu /quadrotor/trpy_cmd /quadrotor/collision
+
+# Reproducir:
+ros2 bag play vuelo_20260428_*.bag
+
+# Info del bag:
+ros2 bag info vuelo_20260428_*.bag
+```
+
+### Mata procesos colgados
+```bash
+pkill -f "ros2 launch"
+pkill -f simulate
+pkill -f teleop
+```
+
+---
 # Mujuco_uav_sim
