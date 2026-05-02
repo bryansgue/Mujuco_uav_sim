@@ -9,6 +9,9 @@
   <xacro:arg name="init_roll"  default="0.0"/>
   <xacro:arg name="init_pitch" default="0.0"/>
   <xacro:arg name="init_yaw"   default="0.0"/>
+  <xacro:arg name="gates_collide" default="0"/>
+
+  <xacro:property name="GATES_C" value="$(arg gates_collide)"/>
 
   <xacro:include filename="quadrotor_acro_macro_motors.xml.xacro" />
 
@@ -43,22 +46,22 @@
   -->
   <xacro:macro name="race_gate" params="name px py pz qw qx qy qz radius thickness material">
     <body name="${name}" pos="${px} ${py} ${pz}" quat="${qw} ${qx} ${qy} ${qz}">
-      <geom name="${name}_s00" type="capsule" fromto="0 +0.5000 +0.0000 0 +0.4619 +0.1913" size="${thickness}" material="${material}" contype="0" conaffinity="0"/>
-      <geom name="${name}_s01" type="capsule" fromto="0 +0.4619 +0.1913 0 +0.3536 +0.3536" size="${thickness}" material="${material}" contype="0" conaffinity="0"/>
-      <geom name="${name}_s02" type="capsule" fromto="0 +0.3536 +0.3536 0 +0.1913 +0.4619" size="${thickness}" material="${material}" contype="0" conaffinity="0"/>
-      <geom name="${name}_s03" type="capsule" fromto="0 +0.1913 +0.4619 0 +0.0000 +0.5000" size="${thickness}" material="${material}" contype="0" conaffinity="0"/>
-      <geom name="${name}_s04" type="capsule" fromto="0 +0.0000 +0.5000 0 -0.1913 +0.4619" size="${thickness}" material="${material}" contype="0" conaffinity="0"/>
-      <geom name="${name}_s05" type="capsule" fromto="0 -0.1913 +0.4619 0 -0.3536 +0.3536" size="${thickness}" material="${material}" contype="0" conaffinity="0"/>
-      <geom name="${name}_s06" type="capsule" fromto="0 -0.3536 +0.3536 0 -0.4619 +0.1913" size="${thickness}" material="${material}" contype="0" conaffinity="0"/>
-      <geom name="${name}_s07" type="capsule" fromto="0 -0.4619 +0.1913 0 -0.5000 +0.0000" size="${thickness}" material="${material}" contype="0" conaffinity="0"/>
-      <geom name="${name}_s08" type="capsule" fromto="0 -0.5000 +0.0000 0 -0.4619 -0.1913" size="${thickness}" material="${material}" contype="0" conaffinity="0"/>
-      <geom name="${name}_s09" type="capsule" fromto="0 -0.4619 -0.1913 0 -0.3536 -0.3536" size="${thickness}" material="${material}" contype="0" conaffinity="0"/>
-      <geom name="${name}_s10" type="capsule" fromto="0 -0.3536 -0.3536 0 -0.1913 -0.4619" size="${thickness}" material="${material}" contype="0" conaffinity="0"/>
-      <geom name="${name}_s11" type="capsule" fromto="0 -0.1913 -0.4619 0 -0.0000 -0.5000" size="${thickness}" material="${material}" contype="0" conaffinity="0"/>
-      <geom name="${name}_s12" type="capsule" fromto="0 -0.0000 -0.5000 0 +0.1913 -0.4619" size="${thickness}" material="${material}" contype="0" conaffinity="0"/>
-      <geom name="${name}_s13" type="capsule" fromto="0 +0.1913 -0.4619 0 +0.3536 -0.3536" size="${thickness}" material="${material}" contype="0" conaffinity="0"/>
-      <geom name="${name}_s14" type="capsule" fromto="0 +0.3536 -0.3536 0 +0.4619 -0.1913" size="${thickness}" material="${material}" contype="0" conaffinity="0"/>
-      <geom name="${name}_s15" type="capsule" fromto="0 +0.4619 -0.1913 0 +0.5000 -0.0000" size="${thickness}" material="${material}" contype="0" conaffinity="0"/>
+      <geom name="${name}_s00" type="capsule" fromto="0 +0.5000 +0.0000 0 +0.4619 +0.1913" size="${thickness}" material="${material}" contype="${GATES_C}" conaffinity="${GATES_C}"/>
+      <geom name="${name}_s01" type="capsule" fromto="0 +0.4619 +0.1913 0 +0.3536 +0.3536" size="${thickness}" material="${material}" contype="${GATES_C}" conaffinity="${GATES_C}"/>
+      <geom name="${name}_s02" type="capsule" fromto="0 +0.3536 +0.3536 0 +0.1913 +0.4619" size="${thickness}" material="${material}" contype="${GATES_C}" conaffinity="${GATES_C}"/>
+      <geom name="${name}_s03" type="capsule" fromto="0 +0.1913 +0.4619 0 +0.0000 +0.5000" size="${thickness}" material="${material}" contype="${GATES_C}" conaffinity="${GATES_C}"/>
+      <geom name="${name}_s04" type="capsule" fromto="0 +0.0000 +0.5000 0 -0.1913 +0.4619" size="${thickness}" material="${material}" contype="${GATES_C}" conaffinity="${GATES_C}"/>
+      <geom name="${name}_s05" type="capsule" fromto="0 -0.1913 +0.4619 0 -0.3536 +0.3536" size="${thickness}" material="${material}" contype="${GATES_C}" conaffinity="${GATES_C}"/>
+      <geom name="${name}_s06" type="capsule" fromto="0 -0.3536 +0.3536 0 -0.4619 +0.1913" size="${thickness}" material="${material}" contype="${GATES_C}" conaffinity="${GATES_C}"/>
+      <geom name="${name}_s07" type="capsule" fromto="0 -0.4619 +0.1913 0 -0.5000 +0.0000" size="${thickness}" material="${material}" contype="${GATES_C}" conaffinity="${GATES_C}"/>
+      <geom name="${name}_s08" type="capsule" fromto="0 -0.5000 +0.0000 0 -0.4619 -0.1913" size="${thickness}" material="${material}" contype="${GATES_C}" conaffinity="${GATES_C}"/>
+      <geom name="${name}_s09" type="capsule" fromto="0 -0.4619 -0.1913 0 -0.3536 -0.3536" size="${thickness}" material="${material}" contype="${GATES_C}" conaffinity="${GATES_C}"/>
+      <geom name="${name}_s10" type="capsule" fromto="0 -0.3536 -0.3536 0 -0.1913 -0.4619" size="${thickness}" material="${material}" contype="${GATES_C}" conaffinity="${GATES_C}"/>
+      <geom name="${name}_s11" type="capsule" fromto="0 -0.1913 -0.4619 0 -0.0000 -0.5000" size="${thickness}" material="${material}" contype="${GATES_C}" conaffinity="${GATES_C}"/>
+      <geom name="${name}_s12" type="capsule" fromto="0 -0.0000 -0.5000 0 +0.1913 -0.4619" size="${thickness}" material="${material}" contype="${GATES_C}" conaffinity="${GATES_C}"/>
+      <geom name="${name}_s13" type="capsule" fromto="0 +0.1913 -0.4619 0 +0.3536 -0.3536" size="${thickness}" material="${material}" contype="${GATES_C}" conaffinity="${GATES_C}"/>
+      <geom name="${name}_s14" type="capsule" fromto="0 +0.3536 -0.3536 0 +0.4619 -0.1913" size="${thickness}" material="${material}" contype="${GATES_C}" conaffinity="${GATES_C}"/>
+      <geom name="${name}_s15" type="capsule" fromto="0 +0.4619 -0.1913 0 +0.5000 -0.0000" size="${thickness}" material="${material}" contype="${GATES_C}" conaffinity="${GATES_C}"/>
     </body>
   </xacro:macro>
 
@@ -111,9 +114,11 @@
                      qw="+0.9743" qx="+0.0206" qy="-0.1001" qz="+0.2007"
                      radius="0.5" thickness="0.025" material="mat_gate_b"/>
 
-    <camera name="camera_pov" pos="-2.5 -3.0 2.5" xyaxes="0.95 -0.30 0 0.10 0.30 0.95"/>
-    <camera name="cinematic" mode="trackcom" target="$(arg quad_name)"
-            pos="0 -5 2.5" xyaxes="1 0 0 0 0.45 1"/>
+    <!-- camara `cinematic` chase definida dentro del macro del dron (hijo de body para track funcionar) -->
+
+    <!-- Spectator: parado en el suelo al costado (mitad de X, borde Y=-2), gira la cabeza para mirar al dron -->
+    <camera name="spectator" mode="targetbody" target="$(arg quad_name)"
+            pos="2.5 -1.95 1.7" fovy="75"/>
   </worldbody>
 
   <actuator>

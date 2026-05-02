@@ -15,7 +15,7 @@ void ExternalForce::RegisterPlugin()
   plugin.name = "MujocoRosUtils::ExternalForce";
   plugin.capabilityflags |= mjPLUGIN_PASSIVE;
 
-  const char * attributes[] = {"topic_name", "vis_scale"};
+  const char * attributes[] = {"topic_name", "vis_scale", "persistent"};
 
   plugin.nattribute = sizeof(attributes) / sizeof(attributes[0]);
   plugin.attributes = attributes;
@@ -89,6 +89,15 @@ ExternalForce * ExternalForce::Create(const mjModel * m, mjData * d, int plugin_
     vis_scale = strtod(vis_scale_char, nullptr);
   }
 
+  // persistent
+  const char * persistent_char = mj_getPluginConfig(m, plugin_id, "persistent");
+  bool persistent = false;
+  if(strlen(persistent_char) > 0)
+  {
+    std::string s(persistent_char);
+    persistent = (s == "true" || s == "True" || s == "1");
+  }
+
   // Set body_id
   int body_id = 0;
   for(; body_id < m->nbody; body_id++)
@@ -106,15 +115,16 @@ ExternalForce * ExternalForce::Create(const mjModel * m, mjData * d, int plugin_
 
   std::cout << "[ExternalForce] Create." << std::endl;
 
-  return new ExternalForce(m, d, body_id, topic_name, vis_scale);
+  return new ExternalForce(m, d, body_id, topic_name, vis_scale, persistent);
 }
 
 ExternalForce::ExternalForce(const mjModel *, // m
                              mjData *, // d
                              int body_id,
                              const std::string & topic_name,
-                             mjtNum vis_scale)
-: body_id_(body_id), topic_name_(topic_name), vis_scale_(vis_scale)
+                             mjtNum vis_scale,
+                             bool persistent)
+: body_id_(body_id), topic_name_(topic_name), vis_scale_(vis_scale), persistent_(persistent)
 {
   if(topic_name_.empty())
   {
@@ -152,7 +162,7 @@ void ExternalForce::compute(const mjModel *, // m
   // Call ROS callback
   executor_->spin_once(std::chrono::seconds(0));
 
-  if(end_time_ >= 0 && end_time_ <= d->time)
+  if(!persistent_ && end_time_ >= 0 && end_time_ <= d->time)
   {
     end_time_ = -1;
     msg_ = nullptr;
@@ -160,6 +170,12 @@ void ExternalForce::compute(const mjModel *, // m
 
   if(!msg_)
   {
+    // Clear any residual applied wrench when persistent mode and no message
+    if(persistent_)
+    {
+      mjtNum * data_wrench = d->xfrc_applied + 6 * body_id_;
+      mju_zero(data_wrench, 6);
+    }
     return;
   }
 
@@ -185,7 +201,7 @@ void ExternalForce::compute(const mjModel *, // m
   mju_copy3(data_force, force);
   mju_copy3(data_moment, moment);
 
-  if(end_time_ < 0)
+  if(!persistent_ && end_time_ < 0)
   {
     end_time_ = d->time + msg_->duration.sec + msg_->duration.nanosec * 1e-9;
   }
@@ -254,6 +270,12 @@ void ExternalForce::visualize(const mjModel *, // m
 
 void ExternalForce::callback(const mujoco_ros_utils::msg::ExternalForce::SharedPtr msg)
 {
+  if(persistent_)
+  {
+    // In persistent mode, always overwrite with the latest force
+    msg_ = std::make_shared<mujoco_ros_utils::msg::ExternalForce>(*msg);
+    return;
+  }
   if(end_time_ > 0)
   {
     mju_warning("[ExternalForce] New message received while processing a previous message. Ignore the new message.");

@@ -95,6 +95,20 @@
       <site name="${prefix}_payload_site" pos="0.0 0.0 -0.05"/>
       
       <camera name="${prefix}_camera" pos="0.035 0 -0.015" euler="0 0 -1.57"/>
+
+      <!-- Cinematic chase: hijo del body para que trackcom lo siga. Orientacion fija en mundo (sin roll/pitch). -->
+      <camera name="cinematic" mode="trackcom" pos="-3 -3 2" xyaxes="0.707 -0.707 0 0.304 0.304 0.906" fovy="70"/>
+
+      <!-- ═══════════════════════════════════════════════════════ -->
+      <!--  External wind/perturbation plugin (persistent mode).   -->
+      <!--  If no publisher on the topic, force stays zero.        -->
+      <!--  Activate with: ros2 run drone_teleop wind_publisher    -->
+      <!-- ═══════════════════════════════════════════════════════ -->
+      <plugin plugin="MujocoRosUtils::ExternalForce">
+        <config key="topic_name" value="/${prefix}/external_force"/>
+        <config key="vis_scale"  value="0.1"/>
+        <config key="persistent" value="true"/>
+      </plugin>
     </body>
   </xacro:macro>
 

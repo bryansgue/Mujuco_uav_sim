@@ -11,6 +11,9 @@
   <depend>sensor_msgs</depend>
   <depend>quadrotor_msgs</depend>
   <depend>acp_mujoco_simulator</depend>
+  <depend>mujoco_ros_utils</depend>
+  <depend>geometry_msgs</depend>
+  <depend>builtin_interfaces</depend>
 
   <buildtool_depend>ament_python</buildtool_depend>
 

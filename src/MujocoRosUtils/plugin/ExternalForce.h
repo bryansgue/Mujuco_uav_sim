@@ -61,7 +61,7 @@ protected:
       \param topic_name topic name of external force
       \param vis_scale arrow length scale
   */
-  ExternalForce(const mjModel * m, mjData * d, int body_id, const std::string & topic_name, mjtNum vis_scale);
+  ExternalForce(const mjModel * m, mjData * d, int body_id, const std::string & topic_name, mjtNum vis_scale, bool persistent);
 
   /** \brief Constructor.
       \param msg external force message
@@ -92,6 +92,9 @@ protected:
 
   //! Arrow length scale (negative value for no visualization)
   mjtNum vis_scale_;
+
+  //! If true, force persists until a new message overrides it (duration ignored)
+  bool persistent_ = false;
 };
 
 } // namespace MujocoRosUtils

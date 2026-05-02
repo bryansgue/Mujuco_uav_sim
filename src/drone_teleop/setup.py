@@ -19,6 +19,7 @@ setup(
     entry_points={
         'console_scripts': [
             'teleop = drone_teleop.teleop:main',
+            'wind_publisher = drone_teleop.wind_publisher:main',
         ],
     },
 )

@@ -66,6 +66,10 @@
 
     <camera name="camera_pov" pos="-2.427 1.392 1.622" xyaxes="-0.216 -0.976 -0.000 0.227 -0.050 0.973"/>
 
+    <!-- Cinematic tracking camera: follows drone position, does NOT rotate with it -->
+    <camera name="cinematic" mode="trackcom" target="$(arg quad_name)"
+            pos="0 -4 2" xyaxes="1 0 0 0 0.45 1"/>
+
   </worldbody>
 
   <actuator>
