@@ -1,7 +1,0 @@
-std_msgs/Header header
-geometry_msgs/Vector3 linear_acceleration
-geometry_msgs/Vector3 angular_velocity
-geometry_msgs/Quaternion quaternion 
-geometry_msgs/Vector3 linear_acceleration_filtered
-geometry_msgs/Vector3 angular_acceleration_filtered
-float64[4] motor

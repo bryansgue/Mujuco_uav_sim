@@ -1,1 +1,0 @@
-['-DMUJOCO_ROOT_DIR=/home/bryansgue/uav_ws/mujoco-3.4.0', '-DAMENT_CMAKE_SYMLINK_INSTALL=1']

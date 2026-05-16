@@ -1,3 +1,0 @@
-[console_scripts]
-teleop = drone_teleop.teleop:main
-

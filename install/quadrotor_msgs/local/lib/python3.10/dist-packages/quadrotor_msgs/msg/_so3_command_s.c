@@ -1,1 +1,0 @@
-/home/bryansgue/uav_ws/build/quadrotor_msgs/rosidl_generator_py/quadrotor_msgs/msg/_so3_command_s.c

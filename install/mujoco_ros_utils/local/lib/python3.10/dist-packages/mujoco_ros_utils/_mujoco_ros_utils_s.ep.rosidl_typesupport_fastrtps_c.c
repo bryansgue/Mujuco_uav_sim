@@ -1,1 +1,0 @@
-/home/bryansgue/uav_ws/build/mujoco_ros_utils/rosidl_generator_py/mujoco_ros_utils/_mujoco_ros_utils_s.ep.rosidl_typesupport_fastrtps_c.c

@@ -1,1 +1,0 @@
-/home/bryansgue/uav_ws/build/quadrotor_msgs/rosidl_generator_py/quadrotor_msgs/msg/_fm_command_s.c

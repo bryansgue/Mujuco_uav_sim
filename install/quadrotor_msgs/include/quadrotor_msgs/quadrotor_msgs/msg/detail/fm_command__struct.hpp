@@ -1,1 +1,0 @@
-/home/bryansgue/uav_ws/build/quadrotor_msgs/rosidl_generator_cpp/quadrotor_msgs/msg/detail/fm_command__struct.hpp

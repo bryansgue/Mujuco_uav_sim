@@ -4,3 +4,10 @@ log/
 __pycache__/
 *.pyc
 *.egg-info/
+
+# IDE
+.vscode/
+
+# MuJoCo runtime / locally compiled plugins
+mujoco-3.4.0/bin/MUJOCO_LOG.TXT
+mujoco-3.4.0/bin/mujoco_plugin/libMujocoRosUtils.so

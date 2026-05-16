@@ -1,7 +1,0 @@
-{
-  "package_name": "mujoco_ros_utils",
-  "non_idl_tuples": [
-    "/home/bryansgue/uav_ws/src/MujocoRosUtils:msg/ExternalForce.msg",
-    "/home/bryansgue/uav_ws/src/MujocoRosUtils:msg/ScalarStamped.msg"
-  ]
-}

@@ -1,1 +1,0 @@
-/home/bryansgue/uav_ws/build/quadrotor_msgs/rosidl_generator_cpp/quadrotor_msgs/msg/detail/output_data__traits.hpp

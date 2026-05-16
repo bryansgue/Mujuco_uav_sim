@@ -1,9 +1,0 @@
-/home/bryansgue/uav_ws/build/acp_mujoco_simulator/CMakeFiles/uninstall.dir
-/home/bryansgue/uav_ws/build/acp_mujoco_simulator/CMakeFiles/acp_mujoco_simulator_uninstall.dir
-/home/bryansgue/uav_ws/build/acp_mujoco_simulator/CMakeFiles/test.dir
-/home/bryansgue/uav_ws/build/acp_mujoco_simulator/CMakeFiles/edit_cache.dir
-/home/bryansgue/uav_ws/build/acp_mujoco_simulator/CMakeFiles/rebuild_cache.dir
-/home/bryansgue/uav_ws/build/acp_mujoco_simulator/CMakeFiles/list_install_components.dir
-/home/bryansgue/uav_ws/build/acp_mujoco_simulator/CMakeFiles/install.dir
-/home/bryansgue/uav_ws/build/acp_mujoco_simulator/CMakeFiles/install/local.dir
-/home/bryansgue/uav_ws/build/acp_mujoco_simulator/CMakeFiles/install/strip.dir

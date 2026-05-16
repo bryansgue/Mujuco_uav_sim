@@ -1,1 +1,0 @@
-/home/bryansgue/uav_ws/build/quadrotor_msgs/rosidl_generator_c/quadrotor_msgs/msg/detail/planner_goal__type_support.h

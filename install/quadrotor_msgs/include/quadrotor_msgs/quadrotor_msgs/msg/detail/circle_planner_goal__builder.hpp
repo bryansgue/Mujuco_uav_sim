@@ -1,1 +1,0 @@
-/home/bryansgue/uav_ws/build/quadrotor_msgs/rosidl_generator_cpp/quadrotor_msgs/msg/detail/circle_planner_goal__builder.hpp

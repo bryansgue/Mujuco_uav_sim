@@ -1,9 +1,0 @@
-std_msgs/Header header
-string des_tracker
-nav_msgs/Odometry init_cond
-quadrotor_msgs/LinePlannerGoal line_planner_goal
-quadrotor_msgs/CirclePlannerGoal circle_planner_goal
-quadrotor_msgs/LissaPlannerGoal lissajous_planner_goal
-quadrotor_msgs/VelocityPlannerGoal velocity_planner_goal
-quadrotor_msgs/QpPlannerGoal qp_planner_goal
-

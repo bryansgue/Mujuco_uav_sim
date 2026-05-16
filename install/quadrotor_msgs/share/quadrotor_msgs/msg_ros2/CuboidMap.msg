@@ -1,1 +1,0 @@
-/home/bryansgue/uav_ws/src/quadrotor_msgs/msg_ros2/CuboidMap.msg

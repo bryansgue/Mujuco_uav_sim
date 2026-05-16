@@ -1,5 +1,0 @@
-string tracker
-quadrotor_msgs/PlannerGoal planner_goal
----
-bool success   # indicate successful transition
-string message # informational, e.g. for error messages

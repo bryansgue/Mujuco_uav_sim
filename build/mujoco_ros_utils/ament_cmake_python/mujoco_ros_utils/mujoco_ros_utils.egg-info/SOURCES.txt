@@ -1,9 +1,0 @@
-setup.py
-mujoco_ros_utils/__init__.py
-mujoco_ros_utils.egg-info/PKG-INFO
-mujoco_ros_utils.egg-info/SOURCES.txt
-mujoco_ros_utils.egg-info/dependency_links.txt
-mujoco_ros_utils.egg-info/top_level.txt
-mujoco_ros_utils/msg/__init__.py
-mujoco_ros_utils/msg/_external_force.py
-mujoco_ros_utils/msg/_scalar_stamped.py

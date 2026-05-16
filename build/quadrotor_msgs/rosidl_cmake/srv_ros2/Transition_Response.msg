@@ -1,3 +1,0 @@
-
-bool success   # indicate successful transition
-string message # informational, e.g. for error messages

@@ -1,1 +1,0 @@
-/home/bryansgue/uav_ws/src/drone_teleop/launch/mujoco_only.launch.py

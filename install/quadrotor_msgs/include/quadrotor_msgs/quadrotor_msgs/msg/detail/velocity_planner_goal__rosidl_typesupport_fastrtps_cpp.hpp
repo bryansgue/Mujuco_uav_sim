@@ -1,1 +1,0 @@
-/home/bryansgue/uav_ws/build/quadrotor_msgs/rosidl_typesupport_fastrtps_cpp/quadrotor_msgs/msg/detail/velocity_planner_goal__rosidl_typesupport_fastrtps_cpp.hpp

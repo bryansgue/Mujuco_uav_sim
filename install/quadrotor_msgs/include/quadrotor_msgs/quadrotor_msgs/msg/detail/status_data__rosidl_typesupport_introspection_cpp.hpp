@@ -1,1 +1,0 @@
-/home/bryansgue/uav_ws/build/quadrotor_msgs/rosidl_typesupport_introspection_cpp/quadrotor_msgs/msg/detail/status_data__rosidl_typesupport_introspection_cpp.hpp

@@ -1,1 +1,0 @@
-/home/bryansgue/uav_ws/build/quadrotor_msgs/rosidl_generator_c/quadrotor_msgs/msg/beta_flight_onboard_control.h
