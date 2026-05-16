@@ -78,6 +78,7 @@
     <geom name="wall_front" type="box" pos=" 8  0  1.5" size="0.05 2   1.5" rgba="0.8 0.8 0.8 0.2" contype="0" conaffinity="0"/>
     <geom name="wall_left"  type="box" pos="2.5  2  1.5" size="5.5 0.05 1.5" rgba="0.8 0.8 0.8 0.2" contype="0" conaffinity="0"/>
     <geom name="wall_right" type="box" pos="2.5 -2  1.5" size="5.5 0.05 1.5" rgba="0.8 0.8 0.8 0.2" contype="0" conaffinity="0"/>
+    <geom name="post_sq" type="box" pos="-2.2 1.0 1.5" size="0.1 0.1 1.5" rgba="0.3 0.3 0.3 1" contype="0" conaffinity="0"/>
 
     <!-- Ejes referencia -->
     <geom name="origin_x" type="cylinder" fromto="0 0 0.01 0.5 0 0.01" size="0.01" rgba="1 0 0 0.5" contype="0" conaffinity="0" group="1"/>
@@ -89,29 +90,29 @@
       Abertura de cada gate: 1.2 m x 1.2 m. Marco 0.04 m. Color alterna A/B.
       Yaw orienta el plano del gate ⟂ a la dirección esperada de paso.
     -->
-    <xacro:race_gate name="gate0" px="+4.222" py="+0.871" pz="+2.169"
-                     qw="+0.9742" qx="+0.0208" qy="-0.1007" qz="+0.2010"
+    <xacro:race_gate name="gate0" px="+4.023" py="+0.976" pz="+1.835"
+                     qw="+0.9716" qx="+0.0095" qy="-0.0395" qz="+0.2333"
                      radius="0.5" thickness="0.025" material="mat_gate_a"/>
-    <xacro:race_gate name="gate1" px="+6.656" py="+1.126" pz="+1.501"
-                     qw="+0.9125" qx="+0.0828" qy="+0.3275" qz="-0.2308"
+    <xacro:race_gate name="gate1" px="+5.743" py="+1.097" pz="+1.478"
+                     qw="+0.9232" qx="+0.0702" qy="+0.2034" qz="-0.3186"
                      radius="0.5" thickness="0.025" material="mat_gate_b"/>
-    <xacro:race_gate name="gate2" px="+7.241" py="-0.400" pz="+0.831"
-                     qw="+0.5856" qx="-0.1497" qy="-0.1111" qz="-0.7888"
+    <xacro:race_gate name="gate2" px="+6.146" py="-0.435" pz="+1.195"
+                     qw="+0.6101" qx="-0.0790" qy="-0.0613" qz="-0.7860"
                      radius="0.5" thickness="0.025" material="mat_gate_a"/>
-    <xacro:race_gate name="gate3" px="+5.589" py="-1.281" pz="+2.148"
-                     qw="+0.0598" qx="+0.1474" qy="-0.0089" qz="+0.9872"
+    <xacro:race_gate name="gate3" px="+5.063" py="-1.299" pz="+1.762"
+                     qw="+0.0196" qx="+0.1271" qy="-0.0025" qz="+0.9917"
                      radius="0.5" thickness="0.025" material="mat_gate_b"/>
-    <xacro:race_gate name="gate4" px="-0.585" py="+1.280" pz="+0.850"
-                     qw="+0.0605" qx="+0.1465" qy="-0.0090" qz="+0.9873"
+    <xacro:race_gate name="gate4" px="-0.060" py="+1.299" pz="+1.237"
+                     qw="+0.0206" qx="+0.1265" qy="-0.0026" qz="+0.9917"
                      radius="0.5" thickness="0.025" material="mat_gate_a"/>
-    <xacro:race_gate name="gate5" px="-2.241" py="+0.403" pz="+2.168"
-                     qw="+0.5846" qx="-0.1507" qy="-0.1117" qz="-0.7893"
+    <xacro:race_gate name="gate5" px="-1.146" py="+0.437" pz="+1.805"
+                     qw="+0.6094" qx="-0.0795" qy="-0.0616" qz="-0.7865"
                      radius="0.5" thickness="0.025" material="mat_gate_b"/>
-    <xacro:race_gate name="gate6" px="-1.659" py="-1.125" pz="+1.502"
-                     qw="+0.9121" qx="+0.0833" qy="+0.3276" qz="-0.2319"
+    <xacro:race_gate name="gate6" px="-0.745" py="-1.095" pz="+1.524"
+                     qw="+0.9228" qx="+0.0704" qy="+0.2033" qz="-0.3197"
                      radius="0.5" thickness="0.025" material="mat_gate_a"/>
-    <xacro:race_gate name="gate7" px="+0.773" py="-0.873" pz="+0.830"
-                     qw="+0.9743" qx="+0.0206" qy="-0.1001" qz="+0.2007"
+    <xacro:race_gate name="gate7" px="+0.973" py="-0.977" pz="+1.165"
+                     qw="+0.9717" qx="+0.0094" qy="-0.0391" qz="+0.2329"
                      radius="0.5" thickness="0.025" material="mat_gate_b"/>
 
     <!-- camara `cinematic` chase definida dentro del macro del dron (hijo de body para track funcionar) -->
