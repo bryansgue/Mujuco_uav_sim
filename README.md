@@ -320,6 +320,23 @@ ros2 run drone_teleop mujoco_launch.sh scene:=motors
 
 Esto abre la ventana grafica de MuJoCo con el drone en el suelo.
 
+#### Modo headless (sin interfaz gráfica)
+
+Para entrenamiento, CI o servidores sin display. Usa `mujoco_headless.launch.py` (mismas escenas, args, plugins y topics; sin viewer).
+
+```bash
+# Tuning de controlador (gates atravesables, tiempo real):
+ros2 launch drone_teleop mujoco_headless.launch.py scene:=gates gates_collide:=off realtime:=true
+
+# Test real (gates con colisión):
+ros2 launch drone_teleop mujoco_headless.launch.py scene:=gates gates_collide:=on realtime:=true
+```
+
+Notas:
+- `realtime:=true` sincroniza sim a wall-clock (necesario si teleop/controlador publica a Hz reales). Default `false` corre fast-forward (útil para batch training).
+- Acepta los mismos argumentos que `mujoco_only.launch.py` (`scene`, `quad_name`, `init_x/y/z`, `init_yaw`, `wind`, `turbulence`, `mean_wind_speed`, `wind_seed`, `gates_collide`).
+- Imprime log periódico: `[headless] sim_t=... wall=... RTF=...`.
+
 ### Perturbaciones realistas (viento + turbulencia + ráfagas)
 
 El simulador incluye un nodo `wind_publisher` que aplica una fuerza externa continua al drone, compuesta por tres elementos aeroespaciales estándar:
