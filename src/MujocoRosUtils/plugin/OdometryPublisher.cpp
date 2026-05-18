@@ -4,6 +4,8 @@
 
 #include <cstring>
 #include <iostream>
+#include <random>
+#include <cstdlib>
 
 namespace MujocoRosUtils
 {
@@ -190,6 +192,46 @@ void OdometryPublisher::compute(const mjModel * m, mjData * d, int)
   odom.twist.twist.linear.x = vel_local[3];
   odom.twist.twist.linear.y = vel_local[4];
   odom.twist.twist.linear.z = vel_local[5];
+
+  // Sensor noise injection — mimic real drone IMU/state-estimator output.
+  // Toggle via env MUJOCO_ODOM_NOISE=1 (set in shell before launching MuJoCo).
+  // Sigmas per axis (Gaussian, zero-mean):
+  //   pos     1.0 cm  (mocap precision)
+  //   quat    0.5°    (filtered attitude estimate)
+  //   v_lin   0.05 m/s (differentiated position)
+  //   ω_body  0.03 rad/s (gyro bias-stable)
+  static const bool   noise_on =
+      [](){ const char* e = std::getenv("MUJOCO_ODOM_NOISE"); return e && std::string(e) == "1"; }();
+  if (noise_on) {
+    static std::mt19937 rng{12345u};
+    static std::normal_distribution<double> n_pos(0.0, 0.010);
+    static std::normal_distribution<double> n_quat(0.0, 0.0044);   // ≈0.5°/2 per quat component
+    static std::normal_distribution<double> n_vel(0.0, 0.01);
+    static std::normal_distribution<double> n_omega(0.0, 0.02);
+    odom.pose.pose.position.x += n_pos(rng);
+    odom.pose.pose.position.y += n_pos(rng);
+    odom.pose.pose.position.z += n_pos(rng);
+    odom.pose.pose.orientation.w += n_quat(rng);
+    odom.pose.pose.orientation.x += n_quat(rng);
+    odom.pose.pose.orientation.y += n_quat(rng);
+    odom.pose.pose.orientation.z += n_quat(rng);
+    // Renormalize quat (controller assumes unit)
+    double qn = std::sqrt(
+        odom.pose.pose.orientation.w*odom.pose.pose.orientation.w +
+        odom.pose.pose.orientation.x*odom.pose.pose.orientation.x +
+        odom.pose.pose.orientation.y*odom.pose.pose.orientation.y +
+        odom.pose.pose.orientation.z*odom.pose.pose.orientation.z);
+    odom.pose.pose.orientation.w /= qn;
+    odom.pose.pose.orientation.x /= qn;
+    odom.pose.pose.orientation.y /= qn;
+    odom.pose.pose.orientation.z /= qn;
+    odom.twist.twist.linear.x  += n_vel(rng);
+    odom.twist.twist.linear.y  += n_vel(rng);
+    odom.twist.twist.linear.z  += n_vel(rng);
+    odom.twist.twist.angular.x += n_omega(rng);
+    odom.twist.twist.angular.y += n_omega(rng);
+    odom.twist.twist.angular.z += n_omega(rng);
+  }
 
   odom_pub_->publish(odom);
 }
