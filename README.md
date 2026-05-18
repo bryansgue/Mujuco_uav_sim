@@ -168,6 +168,43 @@ SIMULACIÓN:
 
 ---
 
+## Aliases recomendados (`~/.bashrc`)
+
+Para replicar el setup en una PC nueva, añadir al `~/.bashrc`:
+
+```bash
+# --- UAV workspace ---
+export COLCON_UAV_WS_DIR=~/uav_ws
+source ~/uav_ws/install/setup.bash
+export PATH="$PATH:$HOME/uav_ws/install/drone_teleop/bin"
+
+# Reset del drone en MuJoCo
+dronreset() { ros2 service call "/${1:-quadrotor}/sim/reset" std_srvs/srv/Trigger '{}' | tail -2; }
+
+# Launches del simulador (arg posicional = quad_name, default: quadrotor)
+sim_gate_collideron()  { ros2 launch drone_teleop mujoco_only.launch.py     scene:=gates gates_collide:=on  quad_name:="${1:-quadrotor}"; }
+sim_gate_collideroff() { ros2 launch drone_teleop mujoco_headless.launch.py scene:=gates gates_collide:=off realtime:=true quad_name:="${1:-quadrotor}"; }
+
+# Experimentos de control (requiere paquete `quadrotor_mpc` separado)
+mpcc()    { ros2 launch quadrotor_mpc experiment.launch.py ctrl:=mpcc        manual_gains:=true quad_name:="${1:-quadrotor}"; }
+dq_mpcc() { ros2 launch quadrotor_mpc experiment.launch.py ctrl:=dq_ablation manual_gains:=true quad_name:="${1:-quadrotor}"; }
+```
+
+Recargar: `source ~/.bashrc`.
+
+Uso:
+
+```bash
+sim_gate_collideroff           # headless gates atravesables (tuning)
+sim_gate_collideron quad2      # GUI gates con colisión, quad_name=quad2
+dronreset                      # resetea /quadrotor/sim/reset
+dronreset quad2                # resetea /quad2/sim/reset
+```
+
+> `mpcc` / `dq_mpcc` apuntan al paquete `quadrotor_mpc`, fuera de este repo. Solo útil si ese workspace está compilado.
+
+---
+
 ## Estructura del workspace
 
 - `src/drone_teleop/` — Control Python + launch files
