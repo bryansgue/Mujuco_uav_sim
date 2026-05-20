@@ -50,9 +50,8 @@ Diferencia clave:
 
 ## PARA RUIDO EN ODOMETRICA
 ```bash
-MUJOCO_ODOM_NOISE=1
+export MUJOCO_ODOM_NOISE=1
 ```
-
 ### Con interfaz gráfica
 ```bash
 ros2 launch drone_teleop mujoco_only.launch.py scene:=gates gates_collide:=on  quad_name:=eagle4
